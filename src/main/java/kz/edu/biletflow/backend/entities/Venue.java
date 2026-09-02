@@ -6,37 +6,27 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "users")
+@Table(name = "venues")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class Venue {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "email", unique = true)
-    private String email;
+    @Column(name = "name")
+    private String name;
 
-    @Column(name = "password")
-    private String password;
+    @Column(name = "address")
+    private String address;
 
-    @Column(name = "role")
-    private String role;
-
-    @Column(name = "verification_status")
-    private String verificationStatus;
-
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @OneToMany(mappedBy = "organizer")
+    @OneToMany(mappedBy = "venue")
     private List<Event> events = new ArrayList<>();
 }
