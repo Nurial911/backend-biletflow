@@ -10,6 +10,8 @@ import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -70,5 +72,11 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
         userRepository.delete(user);
+    }
+
+    @Override
+    public Page<UserResponse> getAllUsers(Pageable pageable) {
+        Page<User> usersPage = userRepository.findAll(pageable);
+        return usersPage.map(userMapper::toDto);
     }
 }
