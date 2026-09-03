@@ -1,4 +1,4 @@
-package kz.edu.biletflow.backend.controllers.configs;
+package kz.edu.biletflow.backend.configs;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

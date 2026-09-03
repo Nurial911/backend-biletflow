@@ -3,6 +3,8 @@ package kz.edu.biletflow.backend.services.impl;
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.User;
+import kz.edu.biletflow.backend.exception.DuplicateResourceException;
+import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.UserService;
@@ -23,7 +25,7 @@ public class UserServiceImpl implements UserService {
     public UserResponse registerUser(RegisterUserRequest request) {
         // check if email is already registered
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
+            throw new DuplicateResourceException("Email is already registered");
         }
 
         User newUser = userMapper.toEntity(request);
@@ -37,8 +39,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse getUserById(Long id) {
-        return userRepository.findById(id)
-                .map(userMapper::toDto)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
+        return userMapper.toDto(user);
     }
 }
