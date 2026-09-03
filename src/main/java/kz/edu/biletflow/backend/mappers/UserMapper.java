@@ -16,6 +16,5 @@ public interface UserMapper {
     @Mapping(target = "verificationStatus", ignore = true)
     User toEntity(RegisterUserRequest request);
 
-    @Mapping(target = "id", ignore = true)
     UserResponse toDto(User user);
 }
