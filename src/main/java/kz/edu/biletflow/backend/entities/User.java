@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -25,17 +26,18 @@ public class User {
     @Column(name = "email", unique = true)
     private String email;
 
-    @Column(name = "password")
-    private String password;
+    @Column(name = "passwordHash")
+    private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role")
     private String role;
 
-    @Column(name = "verification_status")
-    private String verificationStatus;
+    @Column(name = "verification_status", nullable = false)
+    private boolean verificationStatus = false;
 
-    @Column(name = "created_at")
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "organizer")
