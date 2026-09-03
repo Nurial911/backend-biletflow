@@ -1,6 +1,7 @@
 package kz.edu.biletflow.backend.services.impl;
 
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
+import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
@@ -42,5 +43,25 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
         return userMapper.toDto(user);
+    }
+
+    @Override
+    public UserResponse updateUserCredentials(Long id, UpdateUserRequest request) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new DuplicateResourceException("Email " + request.getEmail() + " is already registered");
+            }
+        }
+
+        userMapper.updateUser(request, user);
+
+        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        }
+
+        User savedUser = userRepository.save(user);
+        return userMapper.toDto(savedUser);
     }
 }

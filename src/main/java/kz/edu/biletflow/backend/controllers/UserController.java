@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.controllers;
 
 import jakarta.validation.Valid;
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
+import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,5 +15,9 @@ public interface UserController {
 
     @GetMapping("/{id}")
     ResponseEntity<UserResponse> getUserById(@PathVariable Long id);
+
+    @PutMapping("/{id}")
+    ResponseEntity<UserResponse> updateUserCredentials(@PathVariable Long id,
+                                                       @Valid @RequestBody UpdateUserRequest request);
 
 }

@@ -6,12 +6,10 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
-public class RegisterUserRequest {
+public class UpdateUserRequest {
     @Email(message = "Invalid email format")
-    @NotBlank
     private String email;
 
     @Size(min = 6, message = "Password must be at least 6 characters long")
-    @NotBlank
     private String password;
 }

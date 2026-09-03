@@ -1,10 +1,12 @@
 package kz.edu.biletflow.backend.mappers;
 
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
+import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.User;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
@@ -17,4 +19,7 @@ public interface UserMapper {
     User toEntity(RegisterUserRequest request);
 
     UserResponse toDto(User user);
+
+    @Mapping(target = "passwordHash", ignore = true)
+    void updateUser(UpdateUserRequest request, @MappingTarget User user);
 }

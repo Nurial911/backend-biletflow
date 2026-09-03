@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.controllers.impl;
 
 import kz.edu.biletflow.backend.controllers.UserController;
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
+import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
@@ -31,5 +32,11 @@ public class UserControllerImpl implements UserController {
     @Override
     public ResponseEntity<UserResponse> getUserById(Long id) {
         return ResponseEntity.ok(userService.getUserById(id));
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> updateUserCredentials(Long id, UpdateUserRequest request) {
+        var updatedUser = userService.updateUserCredentials(id, request);
+        return ResponseEntity.ok(updatedUser);
     }
 }
