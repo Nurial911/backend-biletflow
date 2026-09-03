@@ -20,4 +20,7 @@ public interface UserController {
     ResponseEntity<UserResponse> updateUserCredentials(@PathVariable Long id,
                                                        @Valid @RequestBody UpdateUserRequest request);
 
+    @DeleteMapping("/{id}")
+    ResponseEntity<Void> deleteUser(@PathVariable Long id);
+
 }

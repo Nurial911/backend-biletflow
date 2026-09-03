@@ -10,4 +10,6 @@ public interface UserService {
     UserResponse getUserById(Long id);
 
     UserResponse updateUserCredentials(Long id, UpdateUserRequest request);
+
+    void deleteUser(Long id);
 }

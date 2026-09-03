@@ -39,4 +39,10 @@ public class UserControllerImpl implements UserController {
         var updatedUser = userService.updateUserCredentials(id, request);
         return ResponseEntity.ok(updatedUser);
     }
+
+    @Override
+    public ResponseEntity<Void> deleteUser(Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
+    }
 }
