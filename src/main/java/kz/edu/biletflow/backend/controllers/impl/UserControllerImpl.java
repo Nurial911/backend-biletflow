@@ -27,4 +27,9 @@ public class UserControllerImpl implements UserController {
                 .toUri();
         return ResponseEntity.created(location).body(createdUser);
     }
+
+    @Override
+    public ResponseEntity<UserResponse> getUserById(Long id) {
+        return ResponseEntity.ok(userService.getUserById(id));
+    }
 }

@@ -34,4 +34,11 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(newUser);
         return userMapper.toDto(savedUser);
     }
+
+    @Override
+    public UserResponse getUserById(Long id) {
+        return userRepository.findById(id)
+                .map(userMapper::toDto)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
 }
