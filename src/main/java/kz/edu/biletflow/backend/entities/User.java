@@ -43,6 +43,9 @@ public class User {
     @OneToMany(mappedBy = "organizer")
     private List<Event> events = new ArrayList<>();
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private OrganizerProfile organizerProfile;
+
     public enum Role {
         ATTENDEE, ORGANIZER, EVENT_ADMIN, PLATFORM_ADMIN
     }
