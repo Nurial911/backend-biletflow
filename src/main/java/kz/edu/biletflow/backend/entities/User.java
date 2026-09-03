@@ -28,6 +28,7 @@ public class User {
     @Column(name = "password")
     private String password;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "role")
     private String role;
 
@@ -39,4 +40,8 @@ public class User {
 
     @OneToMany(mappedBy = "organizer")
     private List<Event> events = new ArrayList<>();
+
+    public enum Role {
+        ATTENDEE, ORGANIZER, EVENT_ADMIN, PLATFORM_ADMIN
+    }
 }
