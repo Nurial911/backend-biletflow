@@ -4,9 +4,7 @@ import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.User;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
+import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
@@ -20,6 +18,7 @@ public interface UserMapper {
 
     UserResponse toDto(User user);
 
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "passwordHash", ignore = true)
     void updateUser(UpdateUserRequest request, @MappingTarget User user);
 }

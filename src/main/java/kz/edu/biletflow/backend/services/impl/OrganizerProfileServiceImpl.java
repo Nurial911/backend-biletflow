@@ -12,6 +12,7 @@ import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.OrganizerProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +22,7 @@ public class OrganizerProfileServiceImpl implements OrganizerProfileService {
     private final OrganizerProfileMapper organizerProfileMapper;
 
     @Override
+    @Transactional
     public OrganizerProfileResponse createProfile(Long userId, CreateOrganizerProfileRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User with id " + userId + " not found"));

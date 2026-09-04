@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -48,6 +49,19 @@ public class GlobalExceptionHandler {
         );
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
+    // when a DB-level constraint is violated (e.g. two concurrent requests race past
+    // an application-level uniqueness check and the DB unique constraint is what
+    // actually catches the second one)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                "The request conflicts with existing data (e.g. a value that must be unique is already in use)",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
 
     // when generic exception
     @ExceptionHandler(Exception.class)
