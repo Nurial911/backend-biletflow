@@ -3,6 +3,7 @@ package kz.edu.biletflow.backend.exception;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -83,6 +84,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    // when the request body is malformed JSON or contains an invalid value for a typed
+    // field (e.g. an unrecognized enum constant) - without this, it falls through to the
+    // generic Exception handler below and incorrectly returns a 500 instead of a 400
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableRequestBody(HttpMessageNotReadableException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Malformed request body or invalid field value",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
 
     // when generic exception
     @ExceptionHandler(Exception.class)

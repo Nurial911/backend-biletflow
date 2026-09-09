@@ -45,6 +45,11 @@ public class Event {
     @Column(name = "visibility_status")
     private VisibilityStatus visibilityStatus;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private EventStatus status = EventStatus.DRAFT;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organizer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_events_organizer"))
     private User organizer;
