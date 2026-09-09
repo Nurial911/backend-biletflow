@@ -61,6 +61,27 @@ public class GlobalExceptionHandler {
         );
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
+    // when the user is not permitted to perform the action (e.g. wrong role)
+    @ExceptionHandler(ForbiddenOperationException.class)
+    public ResponseEntity<ErrorResponse> handleForbiddenOperation(ForbiddenOperationException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.FORBIDDEN.value(),
+                ex.getMessage(),
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+    }
+
+    // when a request violates a domain rule that isn't a simple field-level constraint
+    @ExceptionHandler(BusinessRuleViolationException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessRuleViolation(BusinessRuleViolationException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                ex.getMessage(),
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
 
 
     // when generic exception

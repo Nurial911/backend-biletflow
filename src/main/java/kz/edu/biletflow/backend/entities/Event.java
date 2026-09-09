@@ -41,8 +41,9 @@ public class Event {
     @Column(name = "capacity")
     private Integer capacity;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "visibility_status")
-    private String visibilityStatus;
+    private VisibilityStatus visibilityStatus;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organizer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_events_organizer"))
