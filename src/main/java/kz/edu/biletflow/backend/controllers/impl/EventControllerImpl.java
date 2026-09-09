@@ -5,11 +5,13 @@ import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
 import kz.edu.biletflow.backend.entities.Event;
+import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.EventService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -21,7 +23,9 @@ public class EventControllerImpl implements EventController {
     private final EventService eventService;
 
     @Override
-    public ResponseEntity<EventResponse> createEvent(Long organizerId, CreateEventRequest request) {
+    public ResponseEntity<EventResponse> createEvent(CreateEventRequest request, UserPrincipal currentUser) {
+        Long organizerId = currentUser.getId();
+
         EventResponse createdEvent = eventService.createEvent(organizerId, request);
         URI location = ServletUriComponentsBuilder
                 .fromCurrentContextPath()

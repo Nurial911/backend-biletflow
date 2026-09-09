@@ -9,3 +9,6 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+  jwt:
+    secret: ${JWT_SECRET:local_development_secret_key_must_be_at_least_32_chars_long______}
+    tokenExpiration: 864000
