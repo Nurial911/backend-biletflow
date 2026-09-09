@@ -15,7 +15,10 @@ import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.repositories.VenueRepository;
 import kz.edu.biletflow.backend.services.EventService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -27,6 +30,7 @@ public class EventServiceImpl implements EventService {
     private final VenueRepository venueRepository;
     private final EventMapper eventMapper;
 
+    @Transactional
     @Override
     public EventResponse createEvent(Long organizerId, CreateEventRequest eventRequest) {
         User organizer = userRepository.findById(organizerId)
@@ -43,6 +47,26 @@ public class EventServiceImpl implements EventService {
         event.setOrganizer(organizer);
         event.setVenue(venue);
         return eventMapper.toDto(eventRepository.save(event));
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public EventResponse getEventById(Long id) {
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
+        return eventMapper.toDto(event);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<EventResponse> getAllEvents(Pageable pageable) {
+        return eventRepository.findAll(pageable).map(eventMapper::toDto);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<EventResponse> getEventsByOrganizer(Long organizerId, Pageable pageable) {
+        return eventRepository.findAllByOrganizerId(organizerId, pageable).map(eventMapper::toDto);
     }
 
     private void validateEventTiming(CreateEventRequest request) {
