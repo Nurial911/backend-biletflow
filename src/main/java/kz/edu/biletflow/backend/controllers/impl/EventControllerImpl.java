@@ -51,34 +51,33 @@ public class EventControllerImpl implements EventController {
     }
 
     @Override
-    public ResponseEntity<EventResponse> updateEvent(Long organizerId, Long eventId, UpdateEventRequest request) {
-        return ResponseEntity.ok(eventService.updateEvent(organizerId, eventId, request));
+    public ResponseEntity<EventResponse> updateEvent(UserPrincipal currentUser, Long eventId, UpdateEventRequest request) {
+        return ResponseEntity.ok(eventService.updateEvent(currentUser.getId(), eventId, request));
     }
 
     @Override
-    public ResponseEntity<EventResponse> publishEvent(Long organizerId, Long eventId) {
-        return ResponseEntity.ok(eventService.publishEvent(organizerId, eventId));
+    public ResponseEntity<EventResponse> publishEvent(UserPrincipal currentUser, Long eventId) {
+        return ResponseEntity.ok(eventService.publishEvent(currentUser.getId(), eventId));
     }
 
     @Override
-    public ResponseEntity<EventResponse> unpublishEvent(Long organizerId, Long eventId) {
-        return ResponseEntity.ok(eventService.unpublishEvent(organizerId, eventId));
+    public ResponseEntity<EventResponse> unpublishEvent(UserPrincipal currentUser, Long eventId) {
+        return ResponseEntity.ok(eventService.unpublishEvent(currentUser.getId(), eventId));
     }
 
     @Override
-    public ResponseEntity<EventResponse> cancelEvent(Long organizerId, Long eventId) {
-        return ResponseEntity.ok(eventService.cancelEvent(organizerId, eventId));
+    public ResponseEntity<EventResponse> cancelEvent(UserPrincipal currentUser, Long eventId) {
+        return ResponseEntity.ok(eventService.cancelEvent(currentUser.getId(), eventId));
     }
 
     @Override
-    public ResponseEntity<EventResponse> duplicateEvent(Long organizerId, Long eventId) {
-        EventResponse duplicatedEvent = eventService.duplicateEvent(organizerId, eventId);
+    public ResponseEntity<EventResponse> duplicateEvent(UserPrincipal currentUser, Long eventId) {
+        EventResponse duplicatedEvent = eventService.duplicateEvent(currentUser.getId(), eventId);
         URI location = ServletUriComponentsBuilder
                 .fromCurrentContextPath()
                 .path("/api/events/{id}")
                 .buildAndExpand(duplicatedEvent.getId())
                 .toUri();
         return ResponseEntity.created(location).body(duplicatedEvent);
-
     }
 }

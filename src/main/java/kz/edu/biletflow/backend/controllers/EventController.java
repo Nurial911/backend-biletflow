@@ -33,26 +33,26 @@ public interface EventController {
             Pageable pageable
     );
 
-    @PutMapping("/{organizerId}/{eventId}")
+    @PutMapping("/{eventId}")
     ResponseEntity<EventResponse> updateEvent(
-            @PathVariable Long organizerId,
+            @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Long eventId,
             @Valid @RequestBody UpdateEventRequest request
     );
 
-    @PostMapping("/{organizerId}/{eventId}/publish")
-    ResponseEntity<EventResponse> publishEvent(@PathVariable Long organizerId,
+    @PostMapping("/{eventId}/publish")
+    ResponseEntity<EventResponse> publishEvent(@AuthenticationPrincipal UserPrincipal currentUser,
                                                @PathVariable Long eventId);
 
-    @PostMapping("/{organizerId}/{eventId}/unpublish")
-    ResponseEntity<EventResponse> unpublishEvent(@PathVariable Long organizerId,
+    @PostMapping("/{eventId}/unpublish")
+    ResponseEntity<EventResponse> unpublishEvent(@AuthenticationPrincipal UserPrincipal currentUser,
                                                  @PathVariable Long eventId);
 
-    @PostMapping("/{organizerId}/{eventId}/cancel")
-    ResponseEntity<EventResponse> cancelEvent(@PathVariable Long organizerId,
+    @PostMapping("/{eventId}/cancel")
+    ResponseEntity<EventResponse> cancelEvent(@AuthenticationPrincipal UserPrincipal currentUser,
                                               @PathVariable Long eventId);
 
-    @PostMapping("/{organizerId}/{eventId}/duplicate")
-    ResponseEntity<EventResponse> duplicateEvent(@PathVariable Long organizerId,
+    @PostMapping("/{eventId}/duplicate")
+    ResponseEntity<EventResponse> duplicateEvent(@AuthenticationPrincipal UserPrincipal currentUser,
                                                  @PathVariable Long eventId);
 }

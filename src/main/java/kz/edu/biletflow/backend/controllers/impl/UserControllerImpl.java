@@ -4,6 +4,7 @@ import kz.edu.biletflow.backend.controllers.UserController;
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
+import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -19,17 +20,6 @@ import java.net.URI;
 @RequiredArgsConstructor
 public class UserControllerImpl implements UserController {
     private final UserService userService;
-
-    @Override
-    public ResponseEntity<UserResponse> registerUser(RegisterUserRequest request) {
-        UserResponse createdUser = userService.registerUser(request);
-        URI location = ServletUriComponentsBuilder
-                .fromCurrentContextPath()
-                .path("/api/users/{id}")
-                .buildAndExpand(createdUser.getId())
-                .toUri();
-        return ResponseEntity.created(location).body(createdUser);
-    }
 
     @Override
     public ResponseEntity<UserResponse> getUserById(Long id) {
@@ -52,5 +42,21 @@ public class UserControllerImpl implements UserController {
     public ResponseEntity<Page<UserResponse>> getAllUsers(Pageable pageable) {
         Page<UserResponse> users = userService.getAllUsers(pageable);
         return ResponseEntity.ok(users);
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> getCurrentUser(UserPrincipal currentUser) {
+        return ResponseEntity.ok(userService.getUserById(currentUser.getId()));
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> updateOwnCredentials(UserPrincipal currentUser, UpdateUserRequest request) {
+        return ResponseEntity.ok(userService.updateUserCredentials(currentUser.getId(), request));
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteOwnAccount(UserPrincipal currentUser) {
+        userService.deleteUser(currentUser.getId());
+        return ResponseEntity.noContent().build();
     }
 }
