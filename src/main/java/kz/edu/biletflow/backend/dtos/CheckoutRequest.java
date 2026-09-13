@@ -11,4 +11,6 @@ public class CheckoutRequest {
     @NotNull
     @Min(1)
     private Integer quantity;
+
+    private Long assignedSeatId;
 }

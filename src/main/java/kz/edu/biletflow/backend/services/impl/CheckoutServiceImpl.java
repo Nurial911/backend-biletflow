@@ -34,6 +34,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final AuditLogRepository auditLogRepository;
     private final TicketRepository ticketRepository;
     private final QrCodeService qrCodeService;
+    private final SeatHoldRepository seatHoldRepository;
 
     @Override
     @Transactional
@@ -59,6 +60,13 @@ public class CheckoutServiceImpl implements CheckoutService {
         if (issued + reserved + request.getQuantity() > type.getQuantity()) {
             throw new BusinessRuleViolationException("Ticket inventory is exhausted");
         }
+        SeatHold seatHold = null;
+        if (request.getAssignedSeatId() != null) {
+            seatHold = seatHoldRepository.findActiveBySeatIdAndUserId(
+                            request.getAssignedSeatId(), userId, LocalDateTime.now())
+                    .orElseThrow(() -> new BusinessRuleViolationException(
+                            "An active seat hold for this user is required"));
+        }
         Attendee attendee = attendeeRepository.findByUserId(userId).orElseGet(() -> {
             User user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
             Attendee newAttendee = new Attendee();
@@ -71,13 +79,16 @@ public class CheckoutServiceImpl implements CheckoutService {
         order.setTotalAmount(type.getPrice().multiply(BigDecimal.valueOf(request.getQuantity())));
         order.setProcessingCharges(BigDecimal.ZERO);
         order.setStatus(OrderStatus.PENDING);
-        Order saved = orderRepository.save(order);
         OrderItem item = new OrderItem();
-        item.setOrder(saved);
+        item.setOrder(order);
         item.setTicketType(type);
         item.setPrice(type.getPrice());
         item.setQuantity(request.getQuantity());
-        saved.getItems().add(item);
+        if (seatHold != null) {
+            item.setAssignedSeat(seatHold.getSeat());
+        }
+        order.getItems().add(item);
+        Order saved = orderRepository.save(order);
         InventoryReservation reservation = new InventoryReservation();
         reservation.setOrder(saved);
         reservation.setTicketType(type);
@@ -116,6 +127,15 @@ public class CheckoutServiceImpl implements CheckoutService {
         Payment savedPayment = paymentRepository.save(payment);
         reservation.setStatus(ReservationStatus.CONVERTED);
         List<Ticket> tickets = issueTickets(order, reservation.getTicketType(), reservation.getQuantity());
+        for (OrderItem item : order.getItems()) {
+            if (item.getAssignedSeat() != null) {
+            SeatHold paidSeatHold = seatHoldRepository.findActiveBySeatIdAndUserId(
+                    item.getAssignedSeat().getId(), userId, LocalDateTime.now())
+                .orElseThrow(() -> new BusinessRuleViolationException(
+                    "The seat hold expired before payment completed"));
+            seatHoldRepository.delete(paidSeatHold);
+            }
+        }
         orderRepository.save(order);
         return toResponse(order, tickets, null);
     }

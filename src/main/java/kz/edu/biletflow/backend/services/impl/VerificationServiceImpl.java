@@ -7,6 +7,7 @@ import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.repositories.CheckInRecordRepository;
 import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
+import kz.edu.biletflow.backend.repositories.StaffAssignmentRepository;
 import kz.edu.biletflow.backend.services.QrCodeService;
 import kz.edu.biletflow.backend.services.VerificationService;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class VerificationServiceImpl implements VerificationService {
     private final TicketRepository ticketRepository;
     private final CheckInRecordRepository checkInRecordRepository;
     private final UserRepository userRepository;
+    private final StaffAssignmentRepository staffAssignmentRepository;
     private final QrCodeService qrCodeService;
 
     @Override
@@ -35,6 +37,7 @@ public class VerificationServiceImpl implements VerificationService {
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff user not found"));
         Ticket ticket = findTicket(ticketIdentifier);
+        requireAssignment(adminId, ticket);
         verifyPayload(ticket, qrPayload);
         if (ticket.getStatus() != TicketStatus.VALID) {
             throw new BusinessRuleViolationException("Ticket is not valid for check-in");
@@ -52,6 +55,7 @@ public class VerificationServiceImpl implements VerificationService {
     @Transactional
     public TicketResponse undoCheckIn(Long adminId, String ticketIdentifier) {
         Ticket ticket = findTicket(ticketIdentifier);
+        requireAssignment(adminId, ticket);
         if (ticket.getStatus() != TicketStatus.CHECKED_IN) {
             throw new BusinessRuleViolationException("Ticket is not checked in");
         }
@@ -61,6 +65,13 @@ public class VerificationServiceImpl implements VerificationService {
         ticket.setStatus(TicketStatus.VALID);
         checkInRecordRepository.save(record);
         return toResponse(ticketRepository.save(ticket));
+    }
+
+    private void requireAssignment(Long adminId, Ticket ticket) {
+        if (!staffAssignmentRepository.existsByEventIdAndEventAdminId(ticket.getEvent().getId(), adminId)) {
+            throw new kz.edu.biletflow.backend.exception.ForbiddenOperationException(
+                    "You are not assigned to administer this event");
+        }
     }
 
     private Ticket findTicket(String identifier) {
