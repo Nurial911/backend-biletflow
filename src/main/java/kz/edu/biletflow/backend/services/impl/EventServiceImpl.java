@@ -42,7 +42,8 @@ public class EventServiceImpl implements EventService {
         Venue venue = venueRepository.findById(eventRequest.getVenueId())
                 .orElseThrow(() -> new ResourceNotFoundException("Venue not found with id: " + eventRequest.getVenueId()));
 
-        validateEventTiming(eventRequest);
+        validateEventTiming(eventRequest.getStartTime(), eventRequest.getRegistrationOpeningTime(),
+            eventRequest.getRegistrationClosingTime());
 
         Event event = eventMapper.toEntity(eventRequest);
         event.setOrganizer(organizer);
@@ -86,7 +87,8 @@ public class EventServiceImpl implements EventService {
             event.setVenue(venue);
         }
 
-        // need to implement validation of timing here
+        validateEventTiming(event.getStartTime(), event.getRegistrationOpeningTime(),
+            event.getRegistrationClosingTime());
         return eventMapper.toDto(eventRepository.save(event));
     }
 
@@ -153,16 +155,19 @@ public class EventServiceImpl implements EventService {
         return eventMapper.toDto(eventRepository.save(copy));
     }
 
-    private void validateEventTiming(CreateEventRequest request) {
-
-        LocalDateTime opening = request.getRegistrationOpeningTime();
-        LocalDateTime closing = request.getRegistrationClosingTime();
+    private void validateEventTiming(LocalDateTime startTime, LocalDateTime opening, LocalDateTime closing) {
+        if (startTime == null || !startTime.isAfter(LocalDateTime.now())) {
+            throw new BusinessRuleViolationException("Event start time must be in the future");
+        }
 
         if (opening != null && closing != null && !opening.isBefore(closing)) {
             throw new BusinessRuleViolationException("Registration opening time must be before the closing time");
         }
 
-        if (closing != null && closing.isAfter(request.getStartTime())) {
+        if (opening != null && !opening.isBefore(startTime)) {
+            throw new BusinessRuleViolationException("Registration must open before the event starts");
+        }
+        if (closing != null && !closing.isBefore(startTime)) {
             throw new BusinessRuleViolationException("Registration must close before the event starts");
         }
     }

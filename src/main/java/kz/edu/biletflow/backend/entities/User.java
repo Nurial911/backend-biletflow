@@ -32,15 +32,16 @@ public class User {
     @Column(name = "email", unique = true)
     private String email;
 
-    @Column(name = "passwordHash")
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role")
     private Role role;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false)
-    private boolean verificationStatus = false;
+    private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -52,8 +53,14 @@ public class User {
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private OrganizerProfile organizerProfile;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private Attendee attendee;
+
     @Column(name = "is_deleted", nullable = false)
     private boolean isDeleted = false;
+
+    @Column(name = "is_suspended", nullable = false)
+    private boolean suspended = false;
 
     public enum Role {
         ATTENDEE, ORGANIZER, EVENT_ADMIN, PLATFORM_ADMIN

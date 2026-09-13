@@ -7,8 +7,12 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
   jwt:
     secret: ${JWT_SECRET:local_development_secret_key_must_be_at_least_32_chars_long______}
     tokenExpiration: 864000

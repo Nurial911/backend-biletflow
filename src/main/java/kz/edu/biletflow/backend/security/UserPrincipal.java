@@ -17,7 +17,10 @@ public class UserPrincipal implements UserDetails {
     private final Collection<? extends GrantedAuthority> authorities;
 
     @Override
-    public String getPassword() { return null; }
+    public String getPassword() {
+        // JWT authentication validates the token in JwtAuthenticationFilter; this principal has no password.
+        return "";
+    }
 
     @Override
     public String getUsername() { return email; }

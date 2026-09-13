@@ -21,8 +21,9 @@ public class OrganizerProfile {
     @Column(name = "contact_information", columnDefinition = "TEXT")
     private String contactInformation;
 
-    @Column(name = "verification_status")
-    private String verificationStatus;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false)
+    private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(
