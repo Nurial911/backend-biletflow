@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.controllers.impl;
 
 import kz.edu.biletflow.backend.controllers.OrganizerProfileController;
 import kz.edu.biletflow.backend.dtos.CreateOrganizerProfileRequest;
+import kz.edu.biletflow.backend.dtos.OrganizerProfileCreatedResponse;
 import kz.edu.biletflow.backend.dtos.OrganizerProfileResponse;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.OrganizerProfileService;
@@ -20,8 +21,8 @@ public class OrganizerProfileControllerImpl implements OrganizerProfileControlle
     private final OrganizerProfileService organizerProfileService;
 
     @Override
-    public ResponseEntity<OrganizerProfileResponse> createOrganizerProfile(UserPrincipal currentUser, CreateOrganizerProfileRequest request) {
-        OrganizerProfileResponse createdProfile = organizerProfileService.createProfile(currentUser.getId(), request);
+    public ResponseEntity<OrganizerProfileCreatedResponse> createOrganizerProfile(UserPrincipal currentUser, CreateOrganizerProfileRequest request) {
+        OrganizerProfileCreatedResponse createdProfile = organizerProfileService.createProfile(currentUser.getId(), request);
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
                 .build()

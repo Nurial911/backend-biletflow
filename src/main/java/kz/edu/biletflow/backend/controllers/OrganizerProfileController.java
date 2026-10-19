@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.controllers;
 
 import jakarta.validation.Valid;
 import kz.edu.biletflow.backend.dtos.CreateOrganizerProfileRequest;
+import kz.edu.biletflow.backend.dtos.OrganizerProfileCreatedResponse;
 import kz.edu.biletflow.backend.dtos.OrganizerProfileResponse;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +14,7 @@ public interface OrganizerProfileController {
 
     // Пока мы не подключили Spring Security и токены, передаем userId в URL
     @PostMapping("/profile")
-    ResponseEntity<OrganizerProfileResponse> createOrganizerProfile(
+    ResponseEntity<OrganizerProfileCreatedResponse> createOrganizerProfile(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @Valid @RequestBody CreateOrganizerProfileRequest request
     );
