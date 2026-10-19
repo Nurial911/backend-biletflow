@@ -167,6 +167,7 @@ public class EventServiceImpl implements EventService {
         copy.setVisibilityStatus(originalEvent.getVisibilityStatus());
         copy.setStatus(EventStatus.DRAFT);
         copy.setOrganizer(originalEvent.getOrganizer());
+        copy.setCategory(originalEvent.getCategory());
 
         return eventMapper.toDto(eventRepository.save(copy));
     }
