@@ -41,7 +41,9 @@ public class EventServiceImpl implements EventService {
         Venue venue = venueRepository.findById(eventRequest.getVenueId())
                 .orElseThrow(() -> new ResourceNotFoundException("Venue not found with id: " + eventRequest.getVenueId()));
 
-        validateEventTiming(eventRequest);
+        validateEventTiming(eventRequest.getRegistrationOpeningTime(),
+                eventRequest.getRegistrationClosingTime(),
+                eventRequest.getStartTime());
 
         Event event = eventMapper.toEntity(eventRequest);
         event.setOrganizer(organizer);
@@ -104,7 +106,10 @@ public class EventServiceImpl implements EventService {
             event.setVenue(venue);
         }
 
-        // need to implement validation of timing here
+        validateEventTiming(event.getRegistrationOpeningTime(),
+                event.getRegistrationClosingTime(),
+                event.getStartTime());
+
         return eventMapper.toDto(eventRepository.save(event));
     }
 
@@ -172,19 +177,15 @@ public class EventServiceImpl implements EventService {
         return eventMapper.toDto(eventRepository.save(copy));
     }
 
-    private void validateEventTiming(CreateEventRequest request) {
-
-        LocalDateTime opening = request.getRegistrationOpeningTime();
-        LocalDateTime closing = request.getRegistrationClosingTime();
-
+    private void validateEventTiming(LocalDateTime opening, LocalDateTime closing, LocalDateTime start) {
         if (opening != null && closing != null && !opening.isBefore(closing)) {
             throw new BusinessRuleViolationException("Registration opening time must be before the closing time");
         }
-
-        if (closing != null && closing.isAfter(request.getStartTime())) {
+        if (closing != null && start != null && closing.isAfter(start)) {
             throw new BusinessRuleViolationException("Registration must close before the event starts");
         }
     }
+
     private Event getOwnedEvent(Long organizerId, Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));

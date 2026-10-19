@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.dtos;
 
+import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Positive;
 import kz.edu.biletflow.backend.entities.VisibilityStatus;
 import lombok.Data;
@@ -14,6 +15,7 @@ public class UpdateEventRequest{
 
     private String category;
 
+    @Future(message = "Start time must be in the future")
     private LocalDateTime startTime;
 
     private LocalDateTime registrationOpeningTime;
