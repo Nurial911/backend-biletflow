@@ -35,10 +35,13 @@ public class UserServiceImpl implements UserService {
     public UserResponse updateUserCredentials(Long id, UpdateUserRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
-        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
-            if (userRepository.existsByEmail(request.getEmail())) {
-                throw new DuplicateResourceException("Email " + request.getEmail() + " is already registered");
-            }
+        if (request.getEmail() != null && request.getEmail().trim().isEmpty()) {
+            request.setEmail(null); // blank means "no change"; the mapper only ignores null
+        }
+        if (request.getEmail() != null
+                && !request.getEmail().equals(user.getEmail())
+                && userRepository.existsByEmail(request.getEmail())) {
+            throw new DuplicateResourceException("Email " + request.getEmail() + " is already registered");
         }
 
         userMapper.updateUser(request, user);
