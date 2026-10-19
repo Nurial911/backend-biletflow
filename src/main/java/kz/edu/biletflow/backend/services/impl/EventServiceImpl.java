@@ -1,12 +1,10 @@
 package kz.edu.biletflow.backend.services.impl;
 
+import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
-import kz.edu.biletflow.backend.entities.Event;
-import kz.edu.biletflow.backend.entities.EventStatus;
-import kz.edu.biletflow.backend.entities.User;
-import kz.edu.biletflow.backend.entities.Venue;
+import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
@@ -16,6 +14,7 @@ import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.repositories.VenueRepository;
 import kz.edu.biletflow.backend.services.EventService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.aot.generate.AccessControl;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -52,22 +51,41 @@ public class EventServiceImpl implements EventService {
 
     @Transactional(readOnly = true)
     @Override
-    public EventResponse getEventById(Long id) {
+    public EventResponse getEventById(Long id, @Nullable Long requesterId, boolean isPlatformAdmin) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
+        boolean isOwner = requesterId != null && event.getOrganizer().getId().equals(requesterId);
+        boolean isPubliclyVisible = event.getStatus() == EventStatus.PUBLISHED
+                && event.getVisibilityStatus() != VisibilityStatus.PRIVATE;
+        if (isPlatformAdmin) {
+            return eventMapper.toDto(event);
+        }
+        if (!isOwner && !isPubliclyVisible) {
+            throw new ResourceNotFoundException("Event not found with id: " + id);
+        }
+
         return eventMapper.toDto(event);
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<EventResponse> getAllEvents(Pageable pageable) {
-        return eventRepository.findAll(pageable).map(eventMapper::toDto);
+    public Page<EventResponse> getAllEvents(Pageable pageable, Long requesterId, boolean isPlatformAdmin) {
+        if (isPlatformAdmin) {
+            return eventRepository.findAll(pageable).map(eventMapper::toDto);
+        } else {
+            return eventRepository.findVisibleEvents(requesterId, pageable).map(eventMapper::toDto);
+        }
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<EventResponse> getEventsByOrganizer(Long organizerId, Pageable pageable) {
-        return eventRepository.findAllByOrganizerId(organizerId, pageable).map(eventMapper::toDto);
+    public Page<EventResponse> getEventsByOrganizer(Long organizerId, Pageable pageable, Long requesterId, boolean isPlatformAdmin) {
+        if (isPlatformAdmin) {
+            return eventRepository.findAllByOrganizerId(organizerId, pageable).map(eventMapper::toDto);
+        } else {
+            return eventRepository.findByOrganizerVisibleTo(organizerId, requesterId, pageable)
+                    .map(eventMapper::toDto);
+        }
     }
 
     @Transactional
@@ -147,7 +165,7 @@ public class EventServiceImpl implements EventService {
         copy.setRegistrationClosingTime(originalEvent.getRegistrationClosingTime());
         copy.setVenue(originalEvent.getVenue());
         copy.setVisibilityStatus(originalEvent.getVisibilityStatus());
-        copy.setStatus(originalEvent.getStatus());
+        copy.setStatus(EventStatus.DRAFT);
         copy.setOrganizer(originalEvent.getOrganizer());
 
         return eventMapper.toDto(eventRepository.save(copy));

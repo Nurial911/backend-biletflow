@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -36,18 +37,27 @@ public class EventControllerImpl implements EventController {
     }
 
     @Override
-    public ResponseEntity<EventResponse> getEventById(Long id) {
-        return ResponseEntity.ok(eventService.getEventById(id));
+    public ResponseEntity<EventResponse> getEventById(Long id, UserPrincipal currentUser) {
+        Long requesterId = currentUser != null ? currentUser.getId() : null;
+        boolean isPlatformAdmin = currentUser != null
+                && currentUser.hasRole("PLATFORM_ADMIN");
+        return ResponseEntity.ok(eventService.getEventById(id, requesterId, isPlatformAdmin));
     }
 
     @Override
-    public ResponseEntity<Page<EventResponse>> getAllEvents(Pageable pageable) {
-        return ResponseEntity.ok(eventService.getAllEvents(pageable));
+    public ResponseEntity<Page<EventResponse>> getAllEvents(Pageable pageable, UserPrincipal currentUser) {
+        boolean isPlatformAdmin = currentUser != null
+                && currentUser.hasRole("PLATFORM_ADMIN");
+        Long requesterId = currentUser != null ? currentUser.getId() : null;
+        return ResponseEntity.ok(eventService.getAllEvents(pageable, requesterId, isPlatformAdmin));
     }
 
     @Override
-    public ResponseEntity<Page<EventResponse>> getEventsByOrganizer(Long organizerId, Pageable pageable) {
-        return ResponseEntity.ok(eventService.getEventsByOrganizer(organizerId, pageable));
+    public ResponseEntity<Page<EventResponse>> getEventsByOrganizer(Long organizerId, Pageable pageable, UserPrincipal currentUser) {
+        Long requesterId = currentUser != null ? currentUser.getId() : null;
+        boolean isPlatformAdmin = currentUser != null
+                && currentUser.hasRole("PLATFORM_ADMIN");
+        return ResponseEntity.ok(eventService.getEventsByOrganizer(organizerId, pageable, requesterId, isPlatformAdmin));
     }
 
     @Override

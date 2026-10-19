@@ -7,8 +7,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface UserService {
-    UserResponse registerUser(RegisterUserRequest request);
-
     UserResponse getUserById(Long id);
 
     UserResponse updateUserCredentials(Long id, UpdateUserRequest request);

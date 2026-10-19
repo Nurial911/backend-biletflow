@@ -22,15 +22,18 @@ public interface EventController {
                                               @AuthenticationPrincipal UserPrincipal currentUser);
 
     @GetMapping("/{id}")
-    ResponseEntity<EventResponse> getEventById(@PathVariable Long id);
+    ResponseEntity<EventResponse> getEventById(@PathVariable Long id,
+                                               @AuthenticationPrincipal UserPrincipal currentUser);
 
     @GetMapping
-    ResponseEntity<Page<EventResponse>> getAllEvents(Pageable pageable);
+    ResponseEntity<Page<EventResponse>> getAllEvents(Pageable pageable,
+                                                     @AuthenticationPrincipal UserPrincipal currentUser);
 
     @GetMapping("/organizer/{organizerId}")
     ResponseEntity<Page<EventResponse>> getEventsByOrganizer(
             @PathVariable Long organizerId,
-            Pageable pageable
+            Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal currentUser
     );
 
     @PutMapping("/{eventId}")

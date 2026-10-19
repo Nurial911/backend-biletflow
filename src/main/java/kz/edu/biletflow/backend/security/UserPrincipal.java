@@ -30,4 +30,8 @@ public class UserPrincipal implements UserDetails {
     public boolean isCredentialsNonExpired() { return true; }
     @Override
     public boolean isEnabled() { return true; }
+
+    public boolean hasRole(String role) {
+        return authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
+    }
 }

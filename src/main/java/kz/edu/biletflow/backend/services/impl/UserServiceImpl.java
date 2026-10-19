@@ -25,23 +25,6 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    @Transactional
-    public UserResponse registerUser(RegisterUserRequest request) {
-        // check if email is already registered
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateResourceException("Email is already registered");
-        }
-
-        User newUser = userMapper.toEntity(request);
-
-        newUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        newUser.setRole(User.Role.ATTENDEE);
-
-        User savedUser = userRepository.save(newUser);
-        return userMapper.toDto(savedUser);
-    }
-
-    @Override
     public UserResponse getUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
