@@ -2,7 +2,6 @@ package kz.edu.biletflow.backend.security;
 
 import jakarta.validation.Valid;
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
-import kz.edu.biletflow.backend.dtos.UserResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

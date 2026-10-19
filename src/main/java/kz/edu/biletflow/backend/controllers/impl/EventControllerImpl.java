@@ -4,15 +4,12 @@ import kz.edu.biletflow.backend.controllers.EventController;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
-import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.EventService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 

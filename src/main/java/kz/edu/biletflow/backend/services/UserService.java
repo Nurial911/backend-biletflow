@@ -1,6 +1,5 @@
 package kz.edu.biletflow.backend.services;
 
-import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import org.springframework.data.domain.Page;

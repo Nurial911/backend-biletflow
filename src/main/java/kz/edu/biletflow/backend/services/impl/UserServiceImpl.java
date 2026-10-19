@@ -1,6 +1,5 @@
 package kz.edu.biletflow.backend.services.impl;
 
-import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.User;

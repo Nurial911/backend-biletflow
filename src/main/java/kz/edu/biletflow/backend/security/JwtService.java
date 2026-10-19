@@ -2,13 +2,11 @@ package kz.edu.biletflow.backend.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import kz.edu.biletflow.backend.configs.JwtConfig;
 import kz.edu.biletflow.backend.entities.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.function.Function;
 

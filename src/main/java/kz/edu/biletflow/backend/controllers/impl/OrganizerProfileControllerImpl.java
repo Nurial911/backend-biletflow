@@ -7,7 +7,6 @@ import kz.edu.biletflow.backend.dtos.OrganizerProfileResponse;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.OrganizerProfileService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.RestController;

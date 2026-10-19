@@ -1,7 +1,6 @@
 package kz.edu.biletflow.backend.controllers;
 
 import jakarta.validation.Valid;
-import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.security.UserPrincipal;

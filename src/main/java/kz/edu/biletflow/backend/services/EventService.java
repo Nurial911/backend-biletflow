@@ -1,6 +1,5 @@
 package kz.edu.biletflow.backend.services;
 
-import com.sun.jdi.request.EventRequest;
 import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
