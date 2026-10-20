@@ -23,6 +23,8 @@ public class CreateEventRequest {
     @NotNull(message = "Start time cannot be blank")
     private LocalDateTime startTime;
 
+    private LocalDateTime endTime;
+
     private LocalDateTime registrationOpeningTime;
     private LocalDateTime registrationClosingTime;
 

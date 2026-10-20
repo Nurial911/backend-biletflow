@@ -18,6 +18,8 @@ public class UpdateEventRequest{
     @Future(message = "Start time must be in the future")
     private LocalDateTime startTime;
 
+    private LocalDateTime endTime;
+
     private LocalDateTime registrationOpeningTime;
     private LocalDateTime registrationClosingTime;
 

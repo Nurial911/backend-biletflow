@@ -32,6 +32,9 @@ public class Event {
     @Column(name = "start_time")
     private LocalDateTime startTime;
 
+    @Column(name = "end_time")
+    private LocalDateTime endTime;
+
     @Column(name = "registration_opening_time")
     private LocalDateTime registrationOpeningTime;
 
