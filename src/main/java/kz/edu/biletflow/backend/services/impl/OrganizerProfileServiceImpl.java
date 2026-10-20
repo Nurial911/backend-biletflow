@@ -4,6 +4,7 @@ import kz.edu.biletflow.backend.dtos.CreateOrganizerProfileRequest;
 import kz.edu.biletflow.backend.dtos.OrganizerProfileCreatedResponse;
 import kz.edu.biletflow.backend.dtos.OrganizerProfileResponse;
 import kz.edu.biletflow.backend.entities.OrganizerProfile;
+import kz.edu.biletflow.backend.entities.OrganizerVerificationStatus;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
@@ -42,7 +43,7 @@ public class OrganizerProfileServiceImpl implements OrganizerProfileService {
         OrganizerProfile organizerProfile = new OrganizerProfile();
         organizerProfile.setUser(user);
         organizerProfile.setContactInformation(request.getContactInformation());
-        organizerProfile.setVerificationStatus("UNVERIFIED");
+        organizerProfile.setVerificationStatus(OrganizerVerificationStatus.UNVERIFIED);
         user.setRole(User.Role.ORGANIZER);
         userRepository.save(user);
 
