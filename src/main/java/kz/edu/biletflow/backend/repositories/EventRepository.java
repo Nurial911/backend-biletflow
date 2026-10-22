@@ -13,22 +13,22 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     Page<Event> findAllByOrganizerId(Long organizerId, Pageable pageable);
 
     @Query("""
-        SELECT e FROM Event e
-        WHERE (e.status = kz.edu.biletflow.backend.entities.EventStatus.PUBLISHED 
-               AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC)
-                      OR (:requesterId IS NOT NULL AND e.organizer.id = :requesterId)
-       """)
+    SELECT e FROM Event e
+    WHERE (e.status = kz.edu.biletflow.backend.entities.EventStatus.PUBLISHED
+           AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC)
+       OR e.organizer.id = :requesterId
+    """)
     Page<Event> findVisibleEvents(@Param("requesterId") Long requesterId, Pageable pageable);
 
     @Query("""
-        SELECT e FROM Event e
-        WHERE e.organizer.id = :organizerId
-          AND (
-               (:requesterId IS NOT NULL AND :requesterId = :organizerId)
-            OR (e.status = kz.edu.biletflow.backend.entities.EventStatus.PUBLISHED
-                AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC)
-          )
-        """)
+    SELECT e FROM Event e
+    WHERE e.organizer.id = :organizerId
+      AND (
+           :requesterId = :organizerId
+        OR (e.status = kz.edu.biletflow.backend.entities.EventStatus.PUBLISHED
+            AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC)
+      )
+    """)
     Page<Event> findByOrganizerVisibleTo(@Param("organizerId") Long organizerId,
                                          @Param("requesterId") Long requesterId,
                                          Pageable pageable);

@@ -24,6 +24,8 @@ import java.time.LocalDateTime;
 @Service
 @RequiredArgsConstructor
 public class EventServiceImpl implements EventService {
+    private static final Long ANONYMOUS_ID = -1L;
+
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final VenueRepository venueRepository;
@@ -75,7 +77,8 @@ public class EventServiceImpl implements EventService {
         if (isPlatformAdmin) {
             return eventRepository.findAll(pageable).map(eventMapper::toDto);
         } else {
-            return eventRepository.findVisibleEvents(requesterId, pageable).map(eventMapper::toDto);
+            return eventRepository.findVisibleEvents(requesterId != null ? requesterId : ANONYMOUS_ID, pageable)
+                    .map(eventMapper::toDto);
         }
     }
 
@@ -85,7 +88,8 @@ public class EventServiceImpl implements EventService {
         if (isPlatformAdmin) {
             return eventRepository.findAllByOrganizerId(organizerId, pageable).map(eventMapper::toDto);
         } else {
-            return eventRepository.findByOrganizerVisibleTo(organizerId, requesterId, pageable)
+            return eventRepository.findByOrganizerVisibleTo(organizerId,
+                            requesterId != null ? requesterId : ANONYMOUS_ID, pageable)
                     .map(eventMapper::toDto);
         }
     }
