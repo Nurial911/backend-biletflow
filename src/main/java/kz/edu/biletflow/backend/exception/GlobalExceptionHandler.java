@@ -2,6 +2,8 @@ package kz.edu.biletflow.backend.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -95,6 +97,30 @@ public class GlobalExceptionHandler {
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
                 "Malformed request body or invalid field value",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    // when a paged request sorts by a field that does not exist (e.g. Swagger sends sort=[]).
+    // Spring Data may throw it directly or wrapped in InvalidDataAccessApiUsageException.
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidSortProperty(PropertyReferenceException ex) {
+        return invalidSort(ex);
+    }
+
+    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidDataAccessUsage(InvalidDataAccessApiUsageException ex) {
+        if (ex.getCause() instanceof PropertyReferenceException cause) {
+            return invalidSort(cause);
+        }
+        return handleGenericException(ex);
+    }
+
+    private ResponseEntity<ErrorResponse> invalidSort(PropertyReferenceException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Invalid sort field: " + ex.getPropertyName(),
                 LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
