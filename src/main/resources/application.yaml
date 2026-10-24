@@ -7,8 +7,24 @@ spring:
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      # "update" is OK for development only. Switch to "validate" + Flyway migrations before real data.
+      ddl-auto: ${DDL_AUTO:update}
+    open-in-view: false
   jwt:
-    secret: ${JWT_SECRET:local_development_secret_key_must_be_at_least_32_chars_long______}
-    tokenExpiration: 864000
+    secret: ${JWT_SECRET}
+    tokenExpiration: ${JWT_EXPIRATION_MS:86400000}   # milliseconds
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+  seed:
+    enabled: ${SEED_DATA:false}
+
+server:
+  port: 8080
+  # Correct http/https links in "Location" headers when running behind a reverse proxy later.
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method

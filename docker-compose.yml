@@ -1,0 +1,45 @@
+# Describes the two programs that make up BiletFlow's backend:
+#   db      = PostgreSQL database
+#   backend = your Spring Boot app
+# Start everything with:  docker compose up --build
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TZ: Asia/Almaty
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # keeps your data when the container is removed
+    ports:
+      - "5432:5432"   # lets you open the DB from your PC (DBeaver, IntelliJ). Remove on a real server!
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy   # wait until the DB is really ready
+    environment:
+      # Inside Docker the DB hostname is the service name "db", NOT localhost.
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (64+ characters)}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      DDL_AUTO: ${DDL_AUTO:-update}
+      SEED_DATA: ${SEED_DATA:-true}
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
