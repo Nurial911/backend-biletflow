@@ -1,6 +1,7 @@
 package kz.edu.biletflow.backend.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.query.sqm.UnknownPathException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.core.PropertyReferenceException;
@@ -103,27 +104,30 @@ public class GlobalExceptionHandler {
     }
 
     // when a paged request sorts by a field that does not exist (e.g. Swagger sends sort=[]).
-    // Spring Data may throw it directly or wrapped in InvalidDataAccessApiUsageException.
-    @ExceptionHandler(PropertyReferenceException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidSortProperty(PropertyReferenceException ex) {
-        return invalidSort(ex);
-    }
-
-    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidDataAccessUsage(InvalidDataAccessApiUsageException ex) {
-        if (ex.getCause() instanceof PropertyReferenceException cause) {
-            return invalidSort(cause);
+    // Derived queries throw PropertyReferenceException; our custom JPQL queries surface it as
+    // Spring Data's "Sort expression ..." error or Hibernate's UnknownPathException, always
+    // wrapped in InvalidDataAccessApiUsageException - so look through the cause chain.
+    @ExceptionHandler({PropertyReferenceException.class, InvalidDataAccessApiUsageException.class})
+    public ResponseEntity<ErrorResponse> handleInvalidSort(Exception ex) {
+        if (!isInvalidSort(ex)) {
+            return handleGenericException(ex);
         }
-        return handleGenericException(ex);
-    }
-
-    private ResponseEntity<ErrorResponse> invalidSort(PropertyReferenceException ex) {
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                "Invalid sort field: " + ex.getPropertyName(),
+                "Invalid sort field",
                 LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    private boolean isInvalidSort(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            if (t instanceof PropertyReferenceException || t instanceof UnknownPathException
+                    || (t.getMessage() != null && t.getMessage().startsWith("Sort expression"))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @ExceptionHandler(AccessDeniedException.class)
