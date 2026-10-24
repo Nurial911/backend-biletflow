@@ -15,7 +15,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data   # keeps your data when the container is removed
     ports:
-      - "5432:5432"   # lets you open the DB from your PC (DBeaver, IntelliJ). Remove on a real server!
+      - "127.0.0.1:5432:5432"   # reachable from this machine only (DBeaver, IntelliJ, SSH tunnel)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -38,8 +38,31 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       DDL_AUTO: ${DDL_AUTO:-update}
       SEED_DATA: ${SEED_DATA:-true}
+      # Behind Caddy: trust X-Forwarded-* so Location headers / Swagger use https and the real host.
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
     ports:
       - "8080:8080"
 
+  # HTTPS reverse proxy for a server with a domain. Gets certificates automatically.
+  # Off by default (so local dev doesn't grab ports 80/443). On the server set in .env:
+  #   COMPOSE_PROFILES=https   and   DOMAIN=yourname.duckdns.org   (ports 80 and 443 must be open)
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data   # keeps issued certificates across restarts
+      - caddy_config:/config
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
