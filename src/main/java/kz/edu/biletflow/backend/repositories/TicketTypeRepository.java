@@ -1,18 +1,26 @@
 package kz.edu.biletflow.backend.repositories;
 
+import jakarta.persistence.LockModeType;
 import kz.edu.biletflow.backend.entities.TicketType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TicketTypeRepository extends JpaRepository<TicketType, Long> {
     List<TicketType> findAllByEventIdOrderByIdAsc(Long eventId);
 
     List<TicketType> findAllByEventIdAndHiddenFalseOrderByIdAsc(Long eventId);
+
+    // Row lock: serializes concurrent purchases of the same ticket type so it can't be oversold.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM TicketType t WHERE t.id = :id")
+    Optional<TicketType> findByIdForUpdate(@Param("id") Long id);
 
     // Hidden types still reserve inventory, so they are included in the sum.
     // excludeId lets an update ignore the row being edited (use -1 when creating).

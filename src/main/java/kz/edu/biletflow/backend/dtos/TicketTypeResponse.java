@@ -13,6 +13,8 @@ public class TicketTypeResponse {
     private String description;
     private BigDecimal price;
     private Integer quantity;
+    private long sold;          // paid + currently reserved by unpaid orders
+    private long available;
     private LocalDateTime salesStart;
     private LocalDateTime salesEnd;
     private Integer maxPerOrder;

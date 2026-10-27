@@ -5,6 +5,7 @@ import kz.edu.biletflow.backend.dtos.TicketTypeResponse;
 import kz.edu.biletflow.backend.dtos.UpdateTicketTypeRequest;
 import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.EventStatus;
+import kz.edu.biletflow.backend.entities.OrderStatus;
 import kz.edu.biletflow.backend.entities.TicketType;
 import kz.edu.biletflow.backend.entities.VisibilityStatus;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
@@ -12,6 +13,7 @@ import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.TicketTypeMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
+import kz.edu.biletflow.backend.repositories.OrderItemRepository;
 import kz.edu.biletflow.backend.repositories.TicketTypeRepository;
 import kz.edu.biletflow.backend.services.TicketTypeService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     private final TicketTypeMapper ticketTypeMapper;
     private final TicketTypeRepository ticketTypeRepository;
     private final EventRepository eventRepository;
+    private final OrderItemRepository orderItemRepository;
 
     @Override
     @Transactional
@@ -43,7 +46,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         validateCapacity(event, ticketType.getQuantity(), NO_ID);
 
         TicketType savedTicketType = ticketTypeRepository.save(ticketType);
-        return ticketTypeMapper.toDto(savedTicketType);
+        return toResponse(savedTicketType);
     }
 
     @Override
@@ -64,7 +67,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
                 ? ticketTypeRepository.findAllByEventIdOrderByIdAsc(eventId)
                 : ticketTypeRepository.findAllByEventIdAndHiddenFalseOrderByIdAsc(eventId);
 
-        return ticketTypes.stream().map(ticketTypeMapper::toDto).toList();
+        return ticketTypes.stream().map(this::toResponse).toList();
     }
 
     @Override
@@ -74,24 +77,44 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         Event event = ticketType.getEvent();
         ensureEventEditable(event);
 
-        // TODO (orders stage): reject price changes and quantity < already sold once orders exist.
+        long sold = countSold(ticketType);
+        if (sold > 0 && request.getPrice() != null && request.getPrice().compareTo(ticketType.getPrice()) != 0) {
+            throw new BusinessRuleViolationException("Price cannot be changed after tickets have been sold or reserved");
+        }
+        if (request.getQuantity() != null && request.getQuantity() < sold) {
+            throw new BusinessRuleViolationException("Quantity cannot be lower than already sold or reserved: " + sold);
+        }
         ticketTypeMapper.updateTicketType(request, ticketType);
 
         // Validate the merged result so changing a single field is still checked.
         validateSalesWindow(ticketType.getSalesStart(), ticketType.getSalesEnd(), event);
         validateCapacity(event, ticketType.getQuantity(), ticketType.getId());
 
-        return ticketTypeMapper.toDto(ticketTypeRepository.save(ticketType));
+        return toResponse(ticketTypeRepository.save(ticketType));
     }
 
     @Override
+    @Transactional
     public TicketTypeResponse setHidden(Long organizerId, Long ticketTypeId, boolean hidden) {
         TicketType ticketType = getOwnedTicketType(organizerId, ticketTypeId);
         ticketType.setHidden(hidden);
-        return ticketTypeMapper.toDto(ticketTypeRepository.save(ticketType));
+        return toResponse(ticketTypeRepository.save(ticketType));
     }
 
     // helpers //
+
+    private long countSold(TicketType ticketType) {
+        return orderItemRepository.countSoldOrReserved(
+                ticketType.getId(), OrderStatus.PAID, OrderStatus.PENDING, LocalDateTime.now());
+    }
+
+    private TicketTypeResponse toResponse(TicketType ticketType) {
+        TicketTypeResponse response = ticketTypeMapper.toDto(ticketType);
+        long sold = countSold(ticketType);
+        response.setSold(sold);
+        response.setAvailable(Math.max(ticketType.getQuantity() - sold, 0));
+        return response;
+    }
 
     private void validateSalesWindow(LocalDateTime salesStart, LocalDateTime salesEnd, Event event) {
         if (salesStart != null && salesEnd != null && !salesStart.isBefore(salesEnd)) {

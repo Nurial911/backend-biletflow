@@ -9,6 +9,8 @@ import org.mapstruct.*;
 @Mapper(componentModel = "spring")
 public interface TicketTypeMapper {
     @Mapping(target = "eventId", source = "event.id")
+    @Mapping(target = "sold", ignore = true)        // derived from orders, filled in by the service
+    @Mapping(target = "available", ignore = true)
     TicketTypeResponse toDto(TicketType ticketType);
 
     @Mapping(target = "id", ignore = true)

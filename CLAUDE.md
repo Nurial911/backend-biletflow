@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Backend for **BiletFlow**, an event-ticketing platform (university SWE project, SRS v0.3).
 Spring Boot 4.1 / Java 21 / PostgreSQL 16, REST API secured with stateless JWT.
-Implemented so far: auth, users, organizer profiles, venues, events, ticket types.
-Not implemented yet: orders/purchases, tickets/QR, check-in (EVENT_ADMIN role), payouts.
+Implemented so far: auth, users, organizer profiles, venues, events, ticket types, orders, tickets (mock payment).
+Not implemented yet: QR image endpoint, check-in (EVENT_ADMIN role), real payment provider, refunds, payouts.
 
 ## Commands
 
@@ -86,7 +86,8 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
 - **Events**: status `DRAFT → PUBLISHED ⇄ DRAFT`, any → `CANCELLED` (terminal; cancelled events can't be edited/published). Visibility `PUBLIC` (listed), `UNLISTED` (open by link, not in lists), `PRIVATE` (owner/admin only).
   Timing: registration opening < closing ≤ start < end (all optional except start). `duplicate` copies as a new DRAFT (ticket types not copied).
   Public list = PUBLISHED + PUBLIC, plus the requester's own events; PLATFORM_ADMIN sees everything.
-- **Ticket types**: belong to an event; only its organizer can create/update/hide. Sum of quantities (hidden included) must not exceed event capacity. Sales window must end before event start. Hidden types are visible only to owner/admin. "Sold" count will come from orders (TODO in `TicketTypeServiceImpl`).
+- **Ticket types**: belong to an event; only its organizer can create/update/hide. Sum of quantities (hidden included) must not exceed event capacity. Sales window must end before event start. Hidden types are visible only to owner/admin. `sold` = PAID + unexpired PENDING order items; price can't change and quantity can't drop below `sold` once any are sold/reserved.
+- **Orders**: `POST /api/orders` (any authenticated user) reserves inventory for `app.orders.hold-minutes` (default 15) under a row lock on each ticket type (`findByIdForUpdate`). Free orders (total 0) are PAID immediately; otherwise `POST /api/orders/{id}/pay` (mock, always succeeds) → PAID and issues one `Ticket` (UUID `code`, for the QR) per unit. `PENDING → CANCELLED` by owner, `PENDING → EXPIRED` by `OrderExpiryScheduler` (every minute). Others' orders/tickets return 404. Endpoints: `/api/orders`, `/api/tickets`.
 
 ## Demo data
 

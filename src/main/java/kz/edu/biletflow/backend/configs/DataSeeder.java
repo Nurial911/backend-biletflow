@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Fills an EMPTY database with demo data so the whole team sees the same thing.
@@ -33,6 +34,8 @@ public class DataSeeder implements ApplicationRunner {
     private final VenueRepository venueRepository;
     private final EventRepository eventRepository;
     private final TicketTypeRepository ticketTypeRepository;
+    private final OrderRepository orderRepository;
+    private final TicketRepository ticketRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -46,7 +49,7 @@ public class DataSeeder implements ApplicationRunner {
 
         // ---------- users ----------
         createUser("admin@biletflow.kz", User.Role.PLATFORM_ADMIN);
-        createUser("attendee@biletflow.kz", User.Role.ATTENDEE);
+        User attendee = createUser("attendee@biletflow.kz", User.Role.ATTENDEE);
         createUser("scanner@biletflow.kz", User.Role.EVENT_ADMIN);
         User org1 = createUser("organizer1@biletflow.kz", User.Role.ORGANIZER);
         User org2 = createUser("organizer2@biletflow.kz", User.Role.ORGANIZER);
@@ -72,7 +75,7 @@ public class DataSeeder implements ApplicationRunner {
                 "An evening of live jazz with local artists.", "Music",
                 now.plusDays(21).withHour(19).withMinute(0), 3,
                 300, VisibilityStatus.PUBLIC, EventStatus.PUBLISHED);
-        ticket(concert, "Standard", "General admission", "5000", 200,
+        TicketType concertStandard = ticket(concert, "Standard", "General admission", "5000", 200,
                 now.minusDays(1), concert.getStartTime().minusHours(2), 6);
         ticket(concert, "VIP", "Front rows + welcome drink", "15000", 50,
                 now.minusDays(1), concert.getStartTime().minusHours(2), 4);
@@ -111,6 +114,10 @@ public class DataSeeder implements ApplicationRunner {
                 500, VisibilityStatus.PUBLIC, EventStatus.CANCELLED);
         ticket(cancelled, "Standard", "General admission", "6000", 500,
                 now.minusDays(3), cancelled.getStartTime().minusHours(2), 6);
+
+        // ---------- orders (attendee) ----------
+        order(attendee, concert, concertStandard, 2, OrderStatus.PAID);     // 2 issued tickets
+        order(attendee, concert, concertStandard, 1, OrderStatus.PENDING);  // unpaid, holds 1 ticket
 
         log.info("Seeding finished. All demo accounts use password: {}", DEMO_PASSWORD);
     }
@@ -154,6 +161,37 @@ public class DataSeeder implements ApplicationRunner {
         e.setVisibilityStatus(visibility);
         e.setStatus(status);
         return eventRepository.save(e);
+    }
+
+    private void order(User user, Event event, TicketType ticketType, int quantity, OrderStatus status) {
+        LocalDateTime now = LocalDateTime.now();
+        Order o = new Order();
+        o.setUser(user);
+        o.setEvent(event);
+        o.setStatus(status);
+        o.setTotalAmount(ticketType.getPrice().multiply(BigDecimal.valueOf(quantity)));
+        o.setExpiresAt(now.plusMinutes(15));
+        OrderItem item = new OrderItem();
+        item.setTicketType(ticketType);
+        item.setQuantity(quantity);
+        item.setUnitPrice(ticketType.getPrice());
+        o.addItem(item);
+        if (status == OrderStatus.PAID) {
+            o.setPaidAt(now);
+        }
+        orderRepository.save(o);
+
+        if (status == OrderStatus.PAID) {
+            for (int i = 0; i < quantity; i++) {
+                Ticket t = new Ticket();
+                t.setCode(UUID.randomUUID().toString());
+                t.setOrder(o);
+                t.setEvent(event);
+                t.setTicketType(ticketType);
+                t.setOwner(user);
+                ticketRepository.save(t);
+            }
+        }
     }
 
     private TicketType ticket(Event event, String name, String description, String price, int quantity,
