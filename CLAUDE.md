@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Backend for **BiletFlow**, an event-ticketing platform (university SWE project, SRS v0.3).
 Spring Boot 4.1 / Java 21 / PostgreSQL 16, REST API secured with stateless JWT.
-Implemented so far: auth, users, organizer profiles, venues, events, ticket types, orders, tickets (mock payment).
-Not implemented yet: QR image endpoint, check-in (EVENT_ADMIN role), real payment provider, refunds, payouts.
+Implemented so far: auth, users, organizer profiles, venues, events, ticket types, orders, tickets (mock payment), QR images, check-in staff + scanning.
+Not implemented yet: paid-sales activation, PDF tickets, email/notifications, refunds, promo codes/campaign QR, support cases, analytics, audit log, payouts.
+`BiletFlow_SRS_Initial_Draft.pdf` (v0.3, in the user's Downloads) is the requirements source.
 
 ## Commands
 
@@ -87,7 +88,11 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
   Timing: registration opening < closing ≤ start < end (all optional except start). `duplicate` copies as a new DRAFT (ticket types not copied).
   Public list = PUBLISHED + PUBLIC, plus the requester's own events; PLATFORM_ADMIN sees everything.
 - **Ticket types**: belong to an event; only its organizer can create/update/hide. Sum of quantities (hidden included) must not exceed event capacity. Sales window must end before event start. Hidden types are visible only to owner/admin. `sold` = PAID + unexpired PENDING order items; price can't change and quantity can't drop below `sold` once any are sold/reserved.
-- **Orders**: `POST /api/orders` (any authenticated user) reserves inventory for `app.orders.hold-minutes` (default 15) under a row lock on each ticket type (`findByIdForUpdate`). Free orders (total 0) are PAID immediately; otherwise `POST /api/orders/{id}/pay` (mock, always succeeds) → PAID and issues one `Ticket` (UUID `code`, for the QR) per unit. `PENDING → CANCELLED` by owner, `PENDING → EXPIRED` by `OrderExpiryScheduler` (every minute). Others' orders/tickets return 404. Endpoints: `/api/orders`, `/api/tickets`.
+- **Orders**: `POST /api/orders` (any authenticated user) reserves inventory for `app.orders.hold-minutes` (default 15) under a row lock on each ticket type (`findByIdForUpdate`). Free orders (total 0) are PAID immediately; otherwise `POST /api/orders/{id}/pay` (mock, always succeeds) → PAID and issues one `Ticket` (UUID `code`, for the QR) per unit. `PENDING → CANCELLED` by owner, `PENDING → EXPIRED` by `OrderExpiryScheduler` (every minute). Others' orders/tickets return 404. Endpoints: `/api/orders`, `/api/tickets`; `GET /api/tickets/{id}/qr` returns a PNG of the ticket `code` (owner/admin).
+- **Event cancel** also flips the event's VALID tickets → CANCELLED and PENDING orders → CANCELLED (bulk updates). PAID orders stay PAID until refunds exist.
+- **Check-in staff**: the organizer assigns `EVENT_ADMIN` users by email via `/api/events/{eventId}/staff` (POST/GET/DELETE). The GET is public at the filter level, so the service returns 404 to anyone but owner/admin.
+- **Check-in** (`/api/check-in/**`, roles EVENT_ADMIN/ORGANIZER/PLATFORM_ADMIN; allowed for assigned staff, the event's organizer, admins — others get 404): `GET /events` (assigned events), `POST /events/{id}/scan {code}`, `POST /events/{id}/tickets/{ticketId}/undo`, `GET /events/{id}/attendees?q=` (email part or exact code), `GET /events/{id}/stats`.
+  A scan always answers **200** with `CheckInResult` (`CHECKED_IN, ALREADY_USED, CANCELLED, WRONG_EVENT, INVALID`) — the scan result is data for the app, not an error. Tickets are row-locked during scan/undo; every check-in and undo is appended to `check_in_records`.
 
 ## Demo data
 

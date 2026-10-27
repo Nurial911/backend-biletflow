@@ -10,6 +10,8 @@ import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.EventMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
+import kz.edu.biletflow.backend.repositories.OrderRepository;
+import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.repositories.VenueRepository;
 import kz.edu.biletflow.backend.services.EventService;
@@ -30,6 +32,8 @@ public class EventServiceImpl implements EventService {
     private final UserRepository userRepository;
     private final VenueRepository venueRepository;
     private final EventMapper eventMapper;
+    private final TicketRepository ticketRepository;
+    private final OrderRepository orderRepository;
 
     @Transactional
     @Override
@@ -157,7 +161,14 @@ public class EventServiceImpl implements EventService {
         }
 
         event.setStatus(EventStatus.CANCELLED);
-        return eventMapper.toDto(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+
+        // Cancelled tickets must not admit anyone; unpaid orders can no longer be paid.
+        // PAID orders keep their status until refunds exist (they need a refund, not a silent change).
+        ticketRepository.updateStatusByEventId(eventId, TicketStatus.VALID, TicketStatus.CANCELLED);
+        orderRepository.updateStatusByEventId(eventId, OrderStatus.PENDING, OrderStatus.CANCELLED);
+
+        return eventMapper.toDto(saved);
     }
 
     @Transactional

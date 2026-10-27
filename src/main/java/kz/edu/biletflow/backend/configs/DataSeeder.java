@@ -36,6 +36,7 @@ public class DataSeeder implements ApplicationRunner {
     private final TicketTypeRepository ticketTypeRepository;
     private final OrderRepository orderRepository;
     private final TicketRepository ticketRepository;
+    private final StaffAssignmentRepository staffAssignmentRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -50,7 +51,7 @@ public class DataSeeder implements ApplicationRunner {
         // ---------- users ----------
         createUser("admin@biletflow.kz", User.Role.PLATFORM_ADMIN);
         User attendee = createUser("attendee@biletflow.kz", User.Role.ATTENDEE);
-        createUser("scanner@biletflow.kz", User.Role.EVENT_ADMIN);
+        User scanner = createUser("scanner@biletflow.kz", User.Role.EVENT_ADMIN);
         User org1 = createUser("organizer1@biletflow.kz", User.Role.ORGANIZER);
         User org2 = createUser("organizer2@biletflow.kz", User.Role.ORGANIZER);
         createProfile(org1, "Astana Student Events Club, +7 700 000 00 01");
@@ -118,6 +119,10 @@ public class DataSeeder implements ApplicationRunner {
         // ---------- orders (attendee) ----------
         order(attendee, concert, concertStandard, 2, OrderStatus.PAID);     // 2 issued tickets
         order(attendee, concert, concertStandard, 1, OrderStatus.PENDING);  // unpaid, holds 1 ticket
+
+        // ---------- check-in staff ----------
+        assignStaff(concert, scanner);
+        assignStaff(workshop, scanner);
 
         log.info("Seeding finished. All demo accounts use password: {}", DEMO_PASSWORD);
     }
@@ -192,6 +197,13 @@ public class DataSeeder implements ApplicationRunner {
                 ticketRepository.save(t);
             }
         }
+    }
+
+    private void assignStaff(Event event, User staff) {
+        StaffAssignment a = new StaffAssignment();
+        a.setEvent(event);
+        a.setUser(staff);
+        staffAssignmentRepository.save(a);
     }
 
     private TicketType ticket(Event event, String name, String description, String price, int quantity,

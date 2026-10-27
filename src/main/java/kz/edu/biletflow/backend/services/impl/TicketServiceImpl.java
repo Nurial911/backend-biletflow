@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TicketServiceImpl implements TicketService {
     private final TicketRepository ticketRepository;
     private final TicketMapper ticketMapper;
+    private final QrCodeGenerator qrCodeGenerator;
 
     @Override
     @Transactional(readOnly = true)
@@ -27,11 +28,23 @@ public class TicketServiceImpl implements TicketService {
     @Override
     @Transactional(readOnly = true)
     public TicketResponse getTicketById(Long ticketId, Long requesterId, boolean isPlatformAdmin) {
+        return ticketMapper.toDto(getVisibleTicket(ticketId, requesterId, isPlatformAdmin));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] getTicketQr(Long ticketId, Long requesterId, boolean isPlatformAdmin) {
+        Ticket ticket = getVisibleTicket(ticketId, requesterId, isPlatformAdmin);
+        // The QR holds only the opaque code; check-in looks everything else up on the server.
+        return qrCodeGenerator.toPng(ticket.getCode());
+    }
+
+    private Ticket getVisibleTicket(Long ticketId, Long requesterId, boolean isPlatformAdmin) {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
         if (!isPlatformAdmin && !ticket.getOwner().getId().equals(requesterId)) {
             throw new ResourceNotFoundException("Ticket not found with id: " + ticketId);
         }
-        return ticketMapper.toDto(ticket);
+        return ticket;
     }
 }

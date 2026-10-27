@@ -12,5 +12,6 @@ public interface TicketMapper {
     @Mapping(target = "eventTitle", source = "event.title")
     @Mapping(target = "ticketTypeId", source = "ticketType.id")
     @Mapping(target = "ticketTypeName", source = "ticketType.name")
+    @Mapping(target = "attendeeEmail", source = "owner.email")
     TicketResponse toDto(Ticket ticket);
 }

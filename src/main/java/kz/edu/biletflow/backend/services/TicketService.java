@@ -8,4 +8,7 @@ public interface TicketService {
     Page<TicketResponse> getMyTickets(Long userId, Pageable pageable);
 
     TicketResponse getTicketById(Long ticketId, Long requesterId, boolean isPlatformAdmin);
+
+    // PNG image of the ticket's QR code.
+    byte[] getTicketQr(Long ticketId, Long requesterId, boolean isPlatformAdmin);
 }

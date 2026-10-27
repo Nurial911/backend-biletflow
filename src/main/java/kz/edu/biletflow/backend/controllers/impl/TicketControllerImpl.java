@@ -7,6 +7,8 @@ import kz.edu.biletflow.backend.services.TicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,5 +26,15 @@ public class TicketControllerImpl implements TicketController {
     public ResponseEntity<TicketResponse> getTicket(UserPrincipal currentUser, Long ticketId) {
         boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
         return ResponseEntity.ok(ticketService.getTicketById(ticketId, currentUser.getId(), isPlatformAdmin));
+    }
+
+    @Override
+    public ResponseEntity<byte[]> getTicketQr(UserPrincipal currentUser, Long ticketId) {
+        boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
+        byte[] png = ticketService.getTicketQr(ticketId, currentUser.getId(), isPlatformAdmin);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .cacheControl(CacheControl.noStore())
+                .body(png);
     }
 }

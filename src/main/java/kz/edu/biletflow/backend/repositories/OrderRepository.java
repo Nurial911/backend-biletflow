@@ -22,4 +22,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     int expirePending(@Param("pending") OrderStatus pending,
                       @Param("expired") OrderStatus expired,
                       @Param("now") LocalDateTime now);
+
+    @Modifying
+    @Query("UPDATE Order o SET o.status = :to WHERE o.event.id = :eventId AND o.status = :from")
+    int updateStatusByEventId(@Param("eventId") Long eventId,
+                              @Param("from") OrderStatus from,
+                              @Param("to") OrderStatus to);
 }

@@ -17,4 +17,9 @@ public interface TicketController {
     @GetMapping("/{ticketId}")
     ResponseEntity<TicketResponse> getTicket(@AuthenticationPrincipal UserPrincipal currentUser,
                                              @PathVariable Long ticketId);
+
+    // image/png. No "produces" here on purpose: errors must still be rendered as JSON.
+    @GetMapping("/{ticketId}/qr")
+    ResponseEntity<byte[]> getTicketQr(@AuthenticationPrincipal UserPrincipal currentUser,
+                                       @PathVariable Long ticketId);
 }
