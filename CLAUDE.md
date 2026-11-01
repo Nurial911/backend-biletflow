@@ -83,7 +83,8 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
 
 - **Users**: register always creates `ATTENDEE`. Soft delete (`@SQLDelete` sets `is_deleted`, `@SQLRestriction` hides deleted rows). Admin endpoints under `/api/users`, self-service under `/api/users/me`.
 - **Organizer profile**: an ATTENDEE calls `POST /api/organizers/profile` → becomes ORGANIZER, gets a new token. One profile per user. Verification status enum exists but no admin verification flow yet.
-- **Venues**: created by ORGANIZER or PLATFORM_ADMIN; listing is public.
+- **Venues**: created by ORGANIZER or PLATFORM_ADMIN; listing is public. `capacity` is required on create (column stays nullable for legacy rows; null = no limit).
+  Event capacity must be ≤ venue capacity (checked on event create/update); an event created without capacity inherits the venue's.
 - **Events**: status `DRAFT → PUBLISHED ⇄ DRAFT`, any → `CANCELLED` (terminal; cancelled events can't be edited/published). Visibility `PUBLIC` (listed), `UNLISTED` (open by link, not in lists), `PRIVATE` (owner/admin only).
   Timing: registration opening < closing ≤ start < end (all optional except start). `duplicate` copies as a new DRAFT (ticket types not copied).
   Public list = PUBLISHED + PUBLIC, plus the requester's own events; PLATFORM_ADMIN sees everything.

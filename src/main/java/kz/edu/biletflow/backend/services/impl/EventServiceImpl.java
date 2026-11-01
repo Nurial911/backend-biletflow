@@ -54,6 +54,7 @@ public class EventServiceImpl implements EventService {
         Event event = eventMapper.toEntity(eventRequest);
         event.setOrganizer(organizer);
         event.setVenue(venue);
+        applyVenueCapacity(event);
         return eventMapper.toDto(eventRepository.save(event));
     }
 
@@ -113,6 +114,8 @@ public class EventServiceImpl implements EventService {
                     .orElseThrow(() -> new BusinessRuleViolationException("Venue not found with id: " + request.getVenueId()));
             event.setVenue(venue);
         }
+        // Checked on the merged entity, so changing only the venue or only the capacity is still validated.
+        applyVenueCapacity(event);
 
         validateEventTiming(event.getRegistrationOpeningTime(),
                 event.getRegistrationClosingTime(),
@@ -204,6 +207,19 @@ public class EventServiceImpl implements EventService {
         }
         if (end != null && start != null && !end.isAfter(start)) {
             throw new BusinessRuleViolationException("Event end time must be after the start time");
+        }
+    }
+
+    private void applyVenueCapacity(Event event) {
+        Integer venueCapacity = event.getVenue().getCapacity();
+        if (venueCapacity == null) {
+            return; // legacy venue without a capacity limit
+        }
+        if (event.getCapacity() == null) {
+            event.setCapacity(venueCapacity);
+        } else if (event.getCapacity() > venueCapacity) {
+            throw new BusinessRuleViolationException("Event capacity (" + event.getCapacity()
+                    + ") exceeds venue capacity (" + venueCapacity + ")");
         }
     }
 

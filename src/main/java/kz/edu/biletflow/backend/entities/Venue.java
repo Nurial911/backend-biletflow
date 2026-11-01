@@ -27,6 +27,10 @@ public class Venue {
     @Column(name = "address")
     private String address;
 
+    // Nullable so ddl-auto can add the column to existing rows; null = no limit (legacy venues).
+    @Column(name = "capacity")
+    private Integer capacity;
+
     @OneToMany(mappedBy = "venue")
     private List<Event> events = new ArrayList<>();
 }

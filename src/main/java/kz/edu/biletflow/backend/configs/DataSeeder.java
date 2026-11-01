@@ -58,9 +58,9 @@ public class DataSeeder implements ApplicationRunner {
         createProfile(org2, "Nur-Sultan Music Productions, +7 700 000 00 02");
 
         // ---------- venues ----------
-        Venue hall = venue("Demo Concert Hall", "Demo street 1, Astana");
-        Venue arena = venue("Demo Arena", "Demo avenue 25, Astana");
-        Venue auditorium = venue("Demo University Auditorium", "Demo campus, Astana");
+        Venue hall = venue("Demo Concert Hall", "Demo street 1, Astana", 400);
+        Venue arena = venue("Demo Arena", "Demo avenue 25, Astana", 1500);
+        Venue auditorium = venue("Demo University Auditorium", "Demo campus, Astana", 200);
 
         LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
 
@@ -142,10 +142,11 @@ public class DataSeeder implements ApplicationRunner {
         organizerProfileRepository.save(p);
     }
 
-    private Venue venue(String name, String address) {
+    private Venue venue(String name, String address, int capacity) {
         Venue v = new Venue();
         v.setName(name);
         v.setAddress(address);
+        v.setCapacity(capacity);
         return venueRepository.save(v);
     }
 
