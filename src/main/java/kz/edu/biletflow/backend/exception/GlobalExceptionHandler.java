@@ -10,6 +10,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -128,6 +132,29 @@ public class GlobalExceptionHandler {
             }
         }
         return false;
+    }
+
+    // when an uploaded file is larger than spring.servlet.multipart.max-file-size
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.CONTENT_TOO_LARGE.value(),
+                "File is too large: posters must be at most 5 MB",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.CONTENT_TOO_LARGE);
+    }
+
+    // when a multipart request is broken or the expected file part is missing
+    @ExceptionHandler({MultipartException.class, MissingServletRequestPartException.class,
+            MissingServletRequestParameterException.class})
+    public ResponseEntity<ErrorResponse> handleBadMultipart(Exception ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Expected a multipart/form-data request with a 'file' part",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

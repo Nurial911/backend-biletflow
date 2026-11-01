@@ -44,6 +44,10 @@ public class Event {
     @Column(name = "capacity")
     private Integer capacity;
 
+    // File name of the poster image in the uploads directory, e.g. "<uuid>.webp"; null = no poster.
+    @Column(name = "poster_key")
+    private String posterKey;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "visibility_status")
     private VisibilityStatus visibilityStatus;

@@ -19,6 +19,8 @@ WORKDIR /app
 
 # Run as a normal user instead of root (safer).
 RUN useradd --system --create-home appuser
+# Poster uploads. Created here so the Docker volume mounted on it is owned by appuser, not root.
+RUN mkdir -p /app/uploads && chown appuser /app/uploads
 USER appuser
 
 COPY --from=build /app/target/*.jar app.jar

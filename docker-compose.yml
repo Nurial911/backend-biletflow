@@ -40,6 +40,9 @@ services:
       SEED_DATA: ${SEED_DATA:-true}
       # Behind Caddy: trust X-Forwarded-* so Location headers / Swagger use https and the real host.
       SERVER_FORWARD_HEADERS_STRATEGY: framework
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads   # event posters, kept across rebuilds
     ports:
       - "8080:8080"
 
@@ -64,5 +67,6 @@ services:
 
 volumes:
   pgdata:
+  uploads:
   caddy_data:
   caddy_config:

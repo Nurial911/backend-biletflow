@@ -19,6 +19,7 @@ public class EventResponse {
     private Integer capacity;
     private VisibilityStatus visibilityStatus;
     private EventStatus status;
+    private String posterUrl; // null when the event has no poster
 
     private Long organizerId;
     private VenueResponse venue;

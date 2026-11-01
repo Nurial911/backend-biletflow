@@ -34,3 +34,6 @@ build/
 
 ### Secrets ###
 .env
+
+### Uploaded files (local runs) ###
+uploads/

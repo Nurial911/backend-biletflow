@@ -3,9 +3,11 @@ package kz.edu.biletflow.backend.services;
 import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
+import kz.edu.biletflow.backend.dtos.PosterImage;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface EventService {
     EventResponse createEvent(Long organizerId, CreateEventRequest eventRequest);
@@ -25,5 +27,11 @@ public interface EventService {
     EventResponse cancelEvent(Long organizerId, Long eventId);
 
     EventResponse duplicateEvent(Long organizerId, Long eventId);
+
+    EventResponse uploadPoster(Long organizerId, Long eventId, MultipartFile file);
+
+    void deletePoster(Long organizerId, Long eventId);
+
+    PosterImage getPoster(Long eventId, @Nullable Long requesterId, boolean isPlatformAdmin);
 
 }

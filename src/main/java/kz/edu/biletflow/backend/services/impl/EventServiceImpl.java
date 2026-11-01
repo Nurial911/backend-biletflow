@@ -3,6 +3,7 @@ package kz.edu.biletflow.backend.services.impl;
 import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
+import kz.edu.biletflow.backend.dtos.PosterImage;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
@@ -20,7 +21,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
 
 @Service
@@ -34,6 +40,7 @@ public class EventServiceImpl implements EventService {
     private final EventMapper eventMapper;
     private final TicketRepository ticketRepository;
     private final OrderRepository orderRepository;
+    private final PosterStorage posterStorage;
 
     @Transactional
     @Override
@@ -61,19 +68,7 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     @Override
     public EventResponse getEventById(Long id, @Nullable Long requesterId, boolean isPlatformAdmin) {
-        Event event = eventRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
-        boolean isOwner = requesterId != null && event.getOrganizer().getId().equals(requesterId);
-        boolean isPubliclyVisible = event.getStatus() == EventStatus.PUBLISHED
-                && event.getVisibilityStatus() != VisibilityStatus.PRIVATE;
-        if (isPlatformAdmin) {
-            return eventMapper.toDto(event);
-        }
-        if (!isOwner && !isPubliclyVisible) {
-            throw new ResourceNotFoundException("Event not found with id: " + id);
-        }
-
-        return eventMapper.toDto(event);
+        return eventMapper.toDto(getVisibleEvent(id, requesterId, isPlatformAdmin));
     }
 
     @Transactional(readOnly = true)
@@ -193,8 +188,110 @@ public class EventServiceImpl implements EventService {
         copy.setStatus(EventStatus.DRAFT);
         copy.setOrganizer(originalEvent.getOrganizer());
         copy.setCategory(originalEvent.getCategory());
+        if (originalEvent.getPosterKey() != null) {
+            // Own file, so removing one event's poster doesn't break the other.
+            String copiedKey = posterStorage.copy(originalEvent.getPosterKey());
+            deleteFileOnRollback(copiedKey);
+            copy.setPosterKey(copiedKey);
+        }
 
         return eventMapper.toDto(eventRepository.save(copy));
+    }
+
+    @Transactional
+    @Override
+    public EventResponse uploadPoster(Long organizerId, Long eventId, MultipartFile file) {
+        Event event = getOwnedEvent(organizerId, eventId);
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new BusinessRuleViolationException("A cancelled event cannot be edited.");
+        }
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not read uploaded poster", e);
+        }
+        PosterFormat format = PosterFormat.detect(bytes)
+                .orElseThrow(() -> new BusinessRuleViolationException("Poster must be a JPEG, PNG or WebP image"));
+
+        String oldKey = event.getPosterKey();
+        String newKey = posterStorage.save(bytes, format);
+        deleteFileOnRollback(newKey);
+        if (oldKey != null) {
+            deleteFileAfterCommit(oldKey);
+        }
+
+        event.setPosterKey(newKey);
+        return eventMapper.toDto(eventRepository.save(event));
+    }
+
+    @Transactional
+    @Override
+    public void deletePoster(Long organizerId, Long eventId) {
+        Event event = getOwnedEvent(organizerId, eventId);
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new BusinessRuleViolationException("A cancelled event cannot be edited.");
+        }
+        if (event.getPosterKey() == null) {
+            throw new ResourceNotFoundException("Event has no poster");
+        }
+
+        deleteFileAfterCommit(event.getPosterKey());
+        event.setPosterKey(null);
+        eventRepository.save(event);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public PosterImage getPoster(Long eventId, @Nullable Long requesterId, boolean isPlatformAdmin) {
+        Event event = getVisibleEvent(eventId, requesterId, isPlatformAdmin);
+        if (event.getPosterKey() == null) {
+            throw new ResourceNotFoundException("Event has no poster");
+        }
+        boolean isPublic = event.getStatus() == EventStatus.PUBLISHED
+                && event.getVisibilityStatus() == VisibilityStatus.PUBLIC;
+        return new PosterImage(posterStorage.load(event.getPosterKey()),
+                PosterFormat.fromKey(event.getPosterKey()).getContentType(),
+                isPublic);
+    }
+
+    // Files are not part of the DB transaction: the old poster goes only once the new key is committed,
+    // and a freshly written file is removed again if the transaction rolls back.
+    private void deleteFileAfterCommit(String key) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                posterStorage.delete(key);
+            }
+        });
+    }
+
+    private void deleteFileOnRollback(String key) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    posterStorage.delete(key);
+                }
+            }
+        });
+    }
+
+    // Hidden-existence rule: events the requester may not see answer 404, not 403.
+    private Event getVisibleEvent(Long id, @Nullable Long requesterId, boolean isPlatformAdmin) {
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + id));
+        if (isPlatformAdmin) {
+            return event;
+        }
+        boolean isOwner = requesterId != null && event.getOrganizer().getId().equals(requesterId);
+        boolean isPubliclyVisible = event.getStatus() == EventStatus.PUBLISHED
+                && event.getVisibilityStatus() != VisibilityStatus.PRIVATE;
+        if (!isOwner && !isPubliclyVisible) {
+            throw new ResourceNotFoundException("Event not found with id: " + id);
+        }
+        return event;
     }
 
     private void validateEventTiming(LocalDateTime opening, LocalDateTime closing,
