@@ -56,6 +56,16 @@ public class Event {
     @Column(name = "status", nullable = false)
     private EventStatus status = EventStatus.DRAFT;
 
+    // Moderation flag set by a platform admin, independent of status so unsuspending restores it.
+    // Default in the column definition so ddl-auto=update can add it to existing rows.
+    @Column(name = "is_suspended", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean suspended = false;
+
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
+
+    @Column(name = "suspension_reason", length = 500)
+    private String suspensionReason;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organizer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_events_organizer"))

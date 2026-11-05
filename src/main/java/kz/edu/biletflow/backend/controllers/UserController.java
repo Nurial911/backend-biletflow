@@ -1,6 +1,7 @@
 package kz.edu.biletflow.backend.controllers;
 
 import jakarta.validation.Valid;
+import kz.edu.biletflow.backend.dtos.ChangeRoleRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.security.UserPrincipal;
@@ -23,6 +24,13 @@ public interface UserController {
     @PutMapping("/{id}")
     ResponseEntity<UserResponse> updateUserCredentials(@PathVariable Long id,
                                                        @Valid @RequestBody UpdateUserRequest request);
+
+    // The user's current token keeps the old role until it expires; they must log in again.
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PutMapping("/{id}/role")
+    ResponseEntity<UserResponse> changeUserRole(@AuthenticationPrincipal UserPrincipal currentUser,
+                                                @PathVariable Long id,
+                                                @Valid @RequestBody ChangeRoleRequest request);
 
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @DeleteMapping("/{id}")

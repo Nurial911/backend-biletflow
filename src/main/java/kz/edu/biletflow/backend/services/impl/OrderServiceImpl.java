@@ -105,7 +105,8 @@ public class OrderServiceImpl implements OrderService {
             // The scheduler flips it to EXPIRED (a status change here would be rolled back by the exception).
             throw new BusinessRuleViolationException("The order has expired, please create a new one");
         }
-        if (order.getEvent().getStatus() != EventStatus.PUBLISHED) {
+        // Suspend cancels PENDING orders in bulk; this also catches one created concurrently with it.
+        if (order.getEvent().getStatus() != EventStatus.PUBLISHED || order.getEvent().isSuspended()) {
             throw new BusinessRuleViolationException("The event is no longer available");
         }
 
@@ -178,6 +179,13 @@ public class OrderServiceImpl implements OrderService {
         // Same rule as getEventById: don't reveal that an invisible event exists.
         if (event.getStatus() != EventStatus.PUBLISHED
                 || (event.getVisibilityStatus() == VisibilityStatus.PRIVATE && !canSeePrivate)) {
+            throw new ResourceNotFoundException("Event not found with id: " + eventId);
+        }
+        if (event.isSuspended()) {
+            // Owner/admin already know the event exists; everyone else gets the usual 404.
+            if (canSeePrivate) {
+                throw new BusinessRuleViolationException("Sales are stopped: this event is suspended");
+            }
             throw new ResourceNotFoundException("Event not found with id: " + eventId);
         }
         return event;

@@ -21,6 +21,11 @@ public class EventResponse {
     private EventStatus status;
     private String posterUrl; // null when the event has no poster
 
+    // Only owner/admin can see a suspended event, so these never reach the public.
+    private boolean suspended;
+    private LocalDateTime suspendedAt;
+    private String suspensionReason;
+
     private Long organizerId;
     private VenueResponse venue;
 

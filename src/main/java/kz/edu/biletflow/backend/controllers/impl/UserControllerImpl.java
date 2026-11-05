@@ -1,6 +1,7 @@
 package kz.edu.biletflow.backend.controllers.impl;
 
 import kz.edu.biletflow.backend.controllers.UserController;
+import kz.edu.biletflow.backend.dtos.ChangeRoleRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.security.UserPrincipal;
@@ -26,6 +27,11 @@ public class UserControllerImpl implements UserController {
     public ResponseEntity<UserResponse> updateUserCredentials(Long id, UpdateUserRequest request) {
         var updatedUser = userService.updateUserCredentials(id, request);
         return ResponseEntity.ok(updatedUser);
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> changeUserRole(UserPrincipal currentUser, Long id, ChangeRoleRequest request) {
+        return ResponseEntity.ok(userService.changeRole(currentUser.getId(), id, request.getRole()));
     }
 
     @Override

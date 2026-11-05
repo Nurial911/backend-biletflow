@@ -3,9 +3,13 @@ package kz.edu.biletflow.backend.services.impl;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.User;
+import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.UserMapper;
+import kz.edu.biletflow.backend.repositories.EventRepository;
+import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
+import kz.edu.biletflow.backend.repositories.StaffAssignmentRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+    private final OrganizerProfileRepository organizerProfileRepository;
+    private final EventRepository eventRepository;
+    private final StaffAssignmentRepository staffAssignmentRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
 
@@ -52,6 +59,38 @@ public class UserServiceImpl implements UserService {
 
         User savedUser = userRepository.save(user);
         return userMapper.toDto(savedUser);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse changeRole(Long adminId, Long userId, User.Role role) {
+        if (adminId.equals(userId)) {
+            // Prevents an admin from locking themselves (and possibly the platform) out of admin access.
+            throw new BusinessRuleViolationException("You cannot change your own role");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + userId + " not found"));
+        User.Role oldRole = user.getRole();
+        if (oldRole == role) {
+            return userMapper.toDto(user);
+        }
+
+        // ORGANIZER comes with an organizer profile; it is granted through POST /api/organizers/profile.
+        if (role == User.Role.ORGANIZER && !organizerProfileRepository.existsByUserId(userId)) {
+            throw new BusinessRuleViolationException(
+                    "User has no organizer profile; they become an organizer by creating one");
+        }
+        // Their events would be left without anyone able to manage them.
+        if (oldRole == User.Role.ORGANIZER && eventRepository.existsByOrganizerId(userId)) {
+            throw new BusinessRuleViolationException("An organizer who owns events cannot be given another role");
+        }
+        // Check-in requires the EVENT_ADMIN role, so the assignments would be dead rows.
+        if (oldRole == User.Role.EVENT_ADMIN) {
+            staffAssignmentRepository.deleteAllByUserId(userId);
+        }
+
+        user.setRole(role);
+        return userMapper.toDto(userRepository.save(user));
     }
 
     @Override

@@ -12,10 +12,13 @@ import org.springframework.stereotype.Repository;
 public interface EventRepository extends JpaRepository<Event, Long> {
     Page<Event> findAllByOrganizerId(Long organizerId, Pageable pageable);
 
+    boolean existsByOrganizerId(Long organizerId);
+
     @Query("""
     SELECT e FROM Event e
     WHERE (e.status = kz.edu.biletflow.backend.entities.EventStatus.PUBLISHED
-           AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC)
+           AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC
+           AND e.suspended = false)
        OR e.organizer.id = :requesterId
     """)
     Page<Event> findVisibleEvents(@Param("requesterId") Long requesterId, Pageable pageable);
@@ -26,7 +29,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
       AND (
            :requesterId = :organizerId
         OR (e.status = kz.edu.biletflow.backend.entities.EventStatus.PUBLISHED
-            AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC)
+            AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC
+            AND e.suspended = false)
       )
     """)
     Page<Event> findByOrganizerVisibleTo(@Param("organizerId") Long organizerId,

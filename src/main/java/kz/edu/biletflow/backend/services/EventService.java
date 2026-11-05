@@ -28,6 +28,10 @@ public interface EventService {
 
     EventResponse duplicateEvent(Long organizerId, Long eventId);
 
+    EventResponse suspendEvent(Long eventId, @Nullable String reason);
+
+    EventResponse unsuspendEvent(Long eventId);
+
     EventResponse uploadPoster(Long organizerId, Long eventId, MultipartFile file);
 
     void deletePoster(Long organizerId, Long eventId);

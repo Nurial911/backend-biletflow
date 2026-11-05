@@ -98,6 +98,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventResponse updateEvent(Long organizerId, Long eventId, UpdateEventRequest request) {
         Event event = getOwnedEvent(organizerId, eventId);
+        ensureNotSuspended(event);
 
         if (event.getStatus() == EventStatus.CANCELLED) {
             throw new BusinessRuleViolationException("A cancelled event cannot be edited.");
@@ -124,6 +125,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventResponse publishEvent(Long organizerId, Long eventId) {
         Event event = getOwnedEvent(organizerId, eventId);
+        ensureNotSuspended(event);
 
         if (event.getStatus() == EventStatus.CANCELLED) {
             throw new BusinessRuleViolationException("A cancelled event cannot be published.");
@@ -140,6 +142,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventResponse unpublishEvent(Long organizerId, Long eventId) {
         Event event = getOwnedEvent(organizerId, eventId);
+        ensureNotSuspended(event);
 
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new BusinessRuleViolationException("Only a published event can be unpublished");
@@ -173,6 +176,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public EventResponse duplicateEvent(Long organizerId, Long eventId) {
         Event originalEvent = getOwnedEvent(organizerId, eventId);
+        ensureNotSuspended(originalEvent); // otherwise a copy would sidestep the suspension
 
         Event copy = new Event();
 
@@ -200,8 +204,48 @@ public class EventServiceImpl implements EventService {
 
     @Transactional
     @Override
+    public EventResponse suspendEvent(Long eventId, @Nullable String reason) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+        if (event.isSuspended()) {
+            throw new BusinessRuleViolationException("Event is already suspended");
+        }
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new BusinessRuleViolationException("A cancelled event cannot be suspended");
+        }
+
+        event.setSuspended(true);
+        event.setSuspendedAt(LocalDateTime.now());
+        event.setSuspensionReason(reason != null && !reason.isBlank() ? reason.trim() : null);
+        Event saved = eventRepository.save(event);
+
+        // Stop sales: unpaid reservations are released. PAID orders and their tickets stay valid —
+        // a suspension is reversible, so it must not destroy anything a refund would be needed for.
+        orderRepository.updateStatusByEventId(eventId, OrderStatus.PENDING, OrderStatus.CANCELLED);
+
+        return eventMapper.toDto(saved);
+    }
+
+    @Transactional
+    @Override
+    public EventResponse unsuspendEvent(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
+        if (!event.isSuspended()) {
+            throw new BusinessRuleViolationException("Event is not suspended");
+        }
+
+        event.setSuspended(false);
+        event.setSuspendedAt(null);
+        event.setSuspensionReason(null);
+        return eventMapper.toDto(eventRepository.save(event));
+    }
+
+    @Transactional
+    @Override
     public EventResponse uploadPoster(Long organizerId, Long eventId, MultipartFile file) {
         Event event = getOwnedEvent(organizerId, eventId);
+        ensureNotSuspended(event);
         if (event.getStatus() == EventStatus.CANCELLED) {
             throw new BusinessRuleViolationException("A cancelled event cannot be edited.");
         }
@@ -230,6 +274,7 @@ public class EventServiceImpl implements EventService {
     @Override
     public void deletePoster(Long organizerId, Long eventId) {
         Event event = getOwnedEvent(organizerId, eventId);
+        ensureNotSuspended(event);
         if (event.getStatus() == EventStatus.CANCELLED) {
             throw new BusinessRuleViolationException("A cancelled event cannot be edited.");
         }
@@ -250,7 +295,8 @@ public class EventServiceImpl implements EventService {
             throw new ResourceNotFoundException("Event has no poster");
         }
         boolean isPublic = event.getStatus() == EventStatus.PUBLISHED
-                && event.getVisibilityStatus() == VisibilityStatus.PUBLIC;
+                && event.getVisibilityStatus() == VisibilityStatus.PUBLIC
+                && !event.isSuspended();
         return new PosterImage(posterStorage.load(event.getPosterKey()),
                 PosterFormat.fromKey(event.getPosterKey()).getContentType(),
                 isPublic);
@@ -287,7 +333,8 @@ public class EventServiceImpl implements EventService {
         }
         boolean isOwner = requesterId != null && event.getOrganizer().getId().equals(requesterId);
         boolean isPubliclyVisible = event.getStatus() == EventStatus.PUBLISHED
-                && event.getVisibilityStatus() != VisibilityStatus.PRIVATE;
+                && event.getVisibilityStatus() != VisibilityStatus.PRIVATE
+                && !event.isSuspended();
         if (!isOwner && !isPubliclyVisible) {
             throw new ResourceNotFoundException("Event not found with id: " + id);
         }
@@ -317,6 +364,13 @@ public class EventServiceImpl implements EventService {
         } else if (event.getCapacity() > venueCapacity) {
             throw new BusinessRuleViolationException("Event capacity (" + event.getCapacity()
                     + ") exceeds venue capacity (" + venueCapacity + ")");
+        }
+    }
+
+    // A suspended event is frozen for its organizer until an admin lifts it; only cancel stays allowed.
+    private void ensureNotSuspended(Event event) {
+        if (event.isSuspended()) {
+            throw new BusinessRuleViolationException("This event is suspended by a platform administrator");
         }
     }
 

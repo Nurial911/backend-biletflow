@@ -35,6 +35,9 @@ public interface EventMapper {
     @Mapping(target = "venue", ignore = true) // set explicitly in the service after lookup
     @Mapping(target = "status", ignore = true) // new events default to DRAFT; state changes go through publish/unpublish/cancel
     @Mapping(target = "posterKey", ignore = true) // poster changes only through /poster endpoints
+    @Mapping(target = "suspended", ignore = true) // moderation goes through /suspend and /unsuspend
+    @Mapping(target = "suspendedAt", ignore = true)
+    @Mapping(target = "suspensionReason", ignore = true)
     Event toEntity(CreateEventRequest request);
 
 
@@ -46,6 +49,9 @@ public interface EventMapper {
     @Mapping(target = "venue", ignore = true) // set explicitly in the service after lookup, only if venueId was provided
     @Mapping(target = "status", ignore = true) // state changes go through publish/unpublish/cancel, not a plain edit
     @Mapping(target = "posterKey", ignore = true) // poster changes only through /poster endpoints
+    @Mapping(target = "suspended", ignore = true) // moderation goes through /suspend and /unsuspend
+    @Mapping(target = "suspendedAt", ignore = true)
+    @Mapping(target = "suspensionReason", ignore = true)
     void updateEvent(UpdateEventRequest request, @MappingTarget Event event);
 
 }

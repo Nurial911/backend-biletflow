@@ -3,6 +3,7 @@ package kz.edu.biletflow.backend.controllers;
 import jakarta.validation.Valid;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
+import kz.edu.biletflow.backend.dtos.SuspendEventRequest;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import org.springframework.data.domain.Page;
@@ -59,6 +60,16 @@ public interface EventController {
     @PostMapping("/{eventId}/duplicate")
     ResponseEntity<EventResponse> duplicateEvent(@AuthenticationPrincipal UserPrincipal currentUser,
                                                  @PathVariable Long eventId);
+
+    // Moderation: hides the event from everyone but owner/admin, stops sales, cancels unpaid orders.
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PostMapping("/{eventId}/suspend")
+    ResponseEntity<EventResponse> suspendEvent(@PathVariable Long eventId,
+                                               @Valid @RequestBody(required = false) SuspendEventRequest request);
+
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PostMapping("/{eventId}/unsuspend")
+    ResponseEntity<EventResponse> unsuspendEvent(@PathVariable Long eventId);
 
     // JPEG, PNG or WebP, at most 5 MB. Replaces the current poster.
     @PreAuthorize("hasRole('ORGANIZER')")

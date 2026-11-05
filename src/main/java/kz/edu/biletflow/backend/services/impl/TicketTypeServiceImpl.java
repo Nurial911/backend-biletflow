@@ -56,7 +56,9 @@ public class TicketTypeServiceImpl implements TicketTypeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
         boolean isOwner = requesterId != null && event.getOrganizer().getId().equals(requesterId);
         boolean canSeeHidden = isOwner || isPlatformAdmin;
-        boolean eventPubliclyVisible = event.getStatus() == EventStatus.PUBLISHED && event.getVisibilityStatus() != VisibilityStatus.PRIVATE;
+        boolean eventPubliclyVisible = event.getStatus() == EventStatus.PUBLISHED
+                && event.getVisibilityStatus() != VisibilityStatus.PRIVATE
+                && !event.isSuspended();
 
         // Same rule as getEventById: don't reveal that an invisible event exists.
         if (!canSeeHidden && !eventPubliclyVisible) {
@@ -143,6 +145,9 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     private void ensureEventEditable(Event event) {
         if (event.getStatus() == EventStatus.CANCELLED) {
             throw new BusinessRuleViolationException("Ticket types of a cancelled event cannot be modified");
+        }
+        if (event.isSuspended()) {
+            throw new BusinessRuleViolationException("This event is suspended by a platform administrator");
         }
     }
 

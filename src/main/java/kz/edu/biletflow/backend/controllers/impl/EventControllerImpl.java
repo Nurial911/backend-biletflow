@@ -4,6 +4,7 @@ import kz.edu.biletflow.backend.controllers.EventController;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
 import kz.edu.biletflow.backend.dtos.EventResponse;
 import kz.edu.biletflow.backend.dtos.PosterImage;
+import kz.edu.biletflow.backend.dtos.SuspendEventRequest;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.EventService;
@@ -91,6 +92,17 @@ public class EventControllerImpl implements EventController {
                 .buildAndExpand(duplicatedEvent.getId())
                 .toUri();
         return ResponseEntity.created(location).body(duplicatedEvent);
+    }
+
+    @Override
+    public ResponseEntity<EventResponse> suspendEvent(Long eventId, SuspendEventRequest request) {
+        String reason = request != null ? request.getReason() : null;
+        return ResponseEntity.ok(eventService.suspendEvent(eventId, reason));
+    }
+
+    @Override
+    public ResponseEntity<EventResponse> unsuspendEvent(Long eventId) {
+        return ResponseEntity.ok(eventService.unsuspendEvent(eventId));
     }
 
     @Override
