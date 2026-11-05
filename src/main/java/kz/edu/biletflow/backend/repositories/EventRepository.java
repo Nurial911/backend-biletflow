@@ -8,11 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
     Page<Event> findAllByOrganizerId(Long organizerId, Pageable pageable);
 
     boolean existsByOrganizerId(Long organizerId);
+
+    List<Event> findAllByOrganizerIdOrderByStartTimeDesc(Long organizerId);
 
     @Query("""
     SELECT e FROM Event e

@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Backend for **BiletFlow**, an event-ticketing platform (university SWE project, SRS v0.3).
 Spring Boot 4.1 / Java 21 / PostgreSQL 16, REST API secured with stateless JWT.
 Implemented so far: auth, users, organizer profiles, venues, events (with poster images), ticket types, orders, tickets (mock payment), QR images, check-in staff + scanning.
-Not implemented yet: paid-sales activation, PDF tickets, email/notifications, refunds, promo codes/campaign QR, support cases, analytics, audit log, payouts.
+Also: admin event suspension + role management, organizer sales dashboard API.
+Not implemented yet: paid-sales activation, PDF tickets, email/notifications, refunds, promo codes/campaign QR, support cases, campaign/attendance analytics, audit log, payouts.
 `BiletFlow_SRS_Initial_Draft.pdf` (v0.3, in the user's Downloads) is the requirements source.
 
 ## Commands
@@ -98,6 +99,9 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
 - **Event suspension** (moderation, PLATFORM_ADMIN only): `POST /api/events/{id}/suspend` (optional body `{reason}`, ≤500 chars) / `/unsuspend`. A separate `suspended` flag, not a status, so unsuspend restores the previous state; CANCELLED events can't be suspended.
   A suspended event is invisible to everyone but owner/admin (404, also hidden from lists and its ticket types), new orders and payments are refused, and PENDING orders → CANCELLED. PAID orders/tickets stay valid and check-in keeps working.
   The organizer can still see it (with `suspensionReason`) and cancel it, but every other change (edit, publish/unpublish, duplicate, poster, ticket types) is a 400.
+- **Organizer sales** (`/api/organizer`, `SalesService`): `GET /sales/events[?eventIds=1,2]` (ORGANIZER; own events + `totals`), `GET /events/{id}/sales` (adds `salesByDay`), `GET /events/{id}/orders?status=&q=` (paged, `q` = part of buyer email). Per-event endpoints also allow PLATFORM_ADMIN; anyone else (incl. foreign ids in `eventIds`) gets 404.
+  Counting: sold/revenue = PAID orders only (free tickets count, revenue 0; revenue uses `OrderItem.unitPrice` snapshots); pending = unexpired PENDING (reserved, not revenue); cancelled/expired counted separately. No refunds yet — subtract them here once added. All figures come from grouped queries (`OrderItemRepository.aggregateSalesByTicketType`, `OrderRepository.countOrdersByEvent`), not per-order loops.
+  Note: `TicketTypeResponse.sold` (public endpoint) means PAID + reserved; the sales API splits them into `sold` and `reserved`.
 - **Event cancel** also flips the event's VALID tickets → CANCELLED and PENDING orders → CANCELLED (bulk updates). PAID orders stay PAID until refunds exist.
 - **Check-in staff**: the organizer assigns `EVENT_ADMIN` users by email via `/api/events/{eventId}/staff` (POST/GET/DELETE). The GET is public at the filter level, so the service returns 404 to anyone but owner/admin.
 - **Check-in** (`/api/check-in/**`, roles EVENT_ADMIN/ORGANIZER/PLATFORM_ADMIN; allowed for assigned staff, the event's organizer, admins — others get 404): `GET /events` (assigned events), `POST /events/{id}/scan {code}`, `POST /events/{id}/tickets/{ticketId}/undo`, `GET /events/{id}/attendees?q=` (email part or exact code), `GET /events/{id}/stats`.

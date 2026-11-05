@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.mappers;
 
+import kz.edu.biletflow.backend.dtos.EventOrderResponse;
 import kz.edu.biletflow.backend.dtos.OrderItemResponse;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
 import kz.edu.biletflow.backend.entities.Order;
@@ -12,6 +13,12 @@ public interface OrderMapper {
     @Mapping(target = "eventId", source = "event.id")
     @Mapping(target = "eventTitle", source = "event.title")
     OrderResponse toDto(Order order);
+
+    // Buyer is filled by the service from a separate query (see OrderRepository.findBuyers).
+    @Mapping(target = "buyerId", ignore = true)
+    @Mapping(target = "buyerEmail", ignore = true)
+    @Mapping(target = "ticketCount", ignore = true)
+    EventOrderResponse toEventOrderDto(Order order);
 
     @Mapping(target = "ticketTypeId", source = "ticketType.id")
     @Mapping(target = "ticketTypeName", source = "ticketType.name")
