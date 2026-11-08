@@ -1,11 +1,13 @@
 package kz.edu.biletflow.backend.repositories;
 
+import jakarta.persistence.LockModeType;
 import kz.edu.biletflow.backend.entities.Order;
 import kz.edu.biletflow.backend.entities.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,10 +16,16 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
     Page<Order> findAllByUserId(Long userId, Pageable pageable);
+
+    // Row lock: two payment requests for one order must not both see it PENDING and issue tickets.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
     // Per event: [eventId, paid, pending (still holding inventory), cancelled, expired].
     // A PENDING order past its hold counts as expired even before the scheduler flips it.

@@ -95,7 +95,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse payOrder(Long userId, Long orderId) {
-        Order order = getOwnedOrder(userId, orderId);
+        Order order = getOwnedOrderForUpdate(userId, orderId);
         LocalDateTime now = LocalDateTime.now();
 
         if (order.getStatus() != OrderStatus.PENDING) {
@@ -120,7 +120,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse cancelOrder(Long userId, Long orderId) {
-        Order order = getOwnedOrder(userId, orderId);
+        Order order = getOwnedOrderForUpdate(userId, orderId);
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new BusinessRuleViolationException("Only a pending order can be cancelled, this order is " + order.getStatus());
         }
@@ -230,8 +230,9 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private Order getOwnedOrder(Long userId, Long orderId) {
-        Order order = orderRepository.findById(orderId)
+    // Locked until the transaction ends, so pay and cancel on one order run one after the other.
+    private Order getOwnedOrderForUpdate(Long userId, Long orderId) {
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
         // Someone else's order is reported as missing, so its existence isn't revealed.
         if (!order.getUser().getId().equals(userId)) {
