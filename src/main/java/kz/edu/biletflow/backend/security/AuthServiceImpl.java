@@ -8,12 +8,10 @@ import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl {
@@ -24,17 +22,10 @@ public class AuthServiceImpl {
 
     public JwtAuthResponse login(LoginRequest request) {
         // emails are stored lowercase (seeder, register), so match case-insensitively
-        User user = userRepository.findByEmailIgnoreCase(request.getEmail()).orElse(null);
-        // TEMP-DEBUG (login investigation): remove once the frontend login works. Never log the password.
-        log.info("TEMP-DEBUG login attempt email='{}' userFound={}", request.getEmail(), user != null);
-        if (user == null) {
-            throw new BadCredentialsException("Incorrect email or password.");
-        }
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail())
+                .orElseThrow(() -> new BadCredentialsException("Incorrect email or password."));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            // TEMP-DEBUG: length only, to spot an extra space/newline added by the form
-            log.info("TEMP-DEBUG login password mismatch for '{}' (password length {})",
-                    user.getEmail(), request.getPassword().length());
             throw new BadCredentialsException("Incorrect email or password.");
         }
 

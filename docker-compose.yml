@@ -37,14 +37,17 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       DDL_AUTO: ${DDL_AUTO:-update}
-      SEED_DATA: ${SEED_DATA:-true}
+      # Demo accounts with a publicly known password: opt in locally, never on a server.
+      SEED_DATA: ${SEED_DATA:-false}
       # Behind Caddy: trust X-Forwarded-* so Location headers / Swagger use https and the real host.
       SERVER_FORWARD_HEADERS_STRATEGY: framework
       UPLOADS_DIR: /app/uploads
     volumes:
       - uploads:/app/uploads   # event posters, kept across rebuilds
     ports:
-      - "8080:8080"
+      # This machine only, so a server is reached through Caddy (HTTPS), never plain HTTP.
+      # Set BACKEND_BIND=0.0.0.0 in .env to test from a phone on the local network.
+      - "${BACKEND_BIND:-127.0.0.1}:8080:8080"
 
   # HTTPS reverse proxy for a server with a domain. Gets certificates automatically.
   # Off by default (so local dev doesn't grab ports 80/443). On the server set in .env:
