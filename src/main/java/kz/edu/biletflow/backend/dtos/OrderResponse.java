@@ -13,6 +13,7 @@ public class OrderResponse {
     private Long eventId;
     private String eventTitle;
     private OrderStatus status;
+    private String attendeeName;
     private BigDecimal totalAmount;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;

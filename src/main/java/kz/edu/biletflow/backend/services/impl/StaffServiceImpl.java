@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.services.impl;
 
 import kz.edu.biletflow.backend.dtos.AssignStaffRequest;
 import kz.edu.biletflow.backend.dtos.StaffResponse;
+import kz.edu.biletflow.backend.entities.AuditAction;
 import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.EventStatus;
 import kz.edu.biletflow.backend.entities.StaffAssignment;
@@ -13,6 +14,7 @@ import kz.edu.biletflow.backend.mappers.StaffAssignmentMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.StaffAssignmentRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
+import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.StaffService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class StaffServiceImpl implements StaffService {
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final StaffAssignmentMapper staffAssignmentMapper;
+    private final AuditService auditService;
 
     @Override
     @Transactional
@@ -48,7 +51,10 @@ public class StaffServiceImpl implements StaffService {
         StaffAssignment assignment = new StaffAssignment();
         assignment.setEvent(event);
         assignment.setUser(user);
-        return staffAssignmentMapper.toDto(staffAssignmentRepository.save(assignment));
+        StaffAssignment saved = staffAssignmentRepository.save(assignment);
+        auditService.record(requesterId, AuditAction.STAFF_ASSIGNED, saved.getId(), eventId,
+                user.getEmail() + " assigned as check-in staff");
+        return staffAssignmentMapper.toDto(saved);
     }
 
     @Override
@@ -66,6 +72,8 @@ public class StaffServiceImpl implements StaffService {
         getManagedEvent(eventId, requesterId, isPlatformAdmin);
         StaffAssignment assignment = staffAssignmentRepository.findByEventIdAndUserId(eventId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User " + userId + " is not assigned to this event"));
+        auditService.record(requesterId, AuditAction.STAFF_REMOVED, assignment.getId(), eventId,
+                "User #" + userId + " removed from check-in staff");
         staffAssignmentRepository.delete(assignment);
     }
 

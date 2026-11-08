@@ -95,6 +95,17 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    // when a payment attempt is refused; the order stays PENDING and can be paid again
+    @ExceptionHandler(PaymentDeclinedException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentDeclined(PaymentDeclinedException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.PAYMENT_REQUIRED.value(),
+                ex.getMessage(),
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
+    }
+
     // A path variable or query parameter of the wrong type, e.g. ?status=FOO or /events/abc.
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {

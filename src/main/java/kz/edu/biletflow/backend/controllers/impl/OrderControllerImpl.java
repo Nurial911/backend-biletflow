@@ -3,6 +3,9 @@ package kz.edu.biletflow.backend.controllers.impl;
 import kz.edu.biletflow.backend.controllers.OrderController;
 import kz.edu.biletflow.backend.dtos.CreateOrderRequest;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
+import kz.edu.biletflow.backend.dtos.PayOrderRequest;
+import kz.edu.biletflow.backend.dtos.PaymentResponse;
+import kz.edu.biletflow.backend.entities.SimulatedPaymentOutcome;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -43,8 +47,17 @@ public class OrderControllerImpl implements OrderController {
     }
 
     @Override
-    public ResponseEntity<OrderResponse> payOrder(UserPrincipal currentUser, Long orderId) {
-        return ResponseEntity.ok(orderService.payOrder(currentUser.getId(), orderId));
+    public ResponseEntity<List<PaymentResponse>> getOrderPayments(UserPrincipal currentUser, Long orderId) {
+        boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
+        return ResponseEntity.ok(orderService.getOrderPayments(orderId, currentUser.getId(), isPlatformAdmin));
+    }
+
+    @Override
+    public ResponseEntity<OrderResponse> payOrder(UserPrincipal currentUser, Long orderId, PayOrderRequest request) {
+        SimulatedPaymentOutcome outcome = request != null && request.getSimulatedOutcome() != null
+                ? request.getSimulatedOutcome()
+                : SimulatedPaymentOutcome.SUCCESS;
+        return ResponseEntity.ok(orderService.payOrder(currentUser.getId(), orderId, outcome));
     }
 
     @Override

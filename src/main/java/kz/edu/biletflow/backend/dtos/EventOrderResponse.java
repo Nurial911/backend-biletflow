@@ -15,6 +15,7 @@ public class EventOrderResponse {
     // Both null if the buyer has deleted their account (the order itself is kept).
     private Long buyerId;
     private String buyerEmail;
+    private String attendeeName;
     private BigDecimal totalAmount;
     private int ticketCount;
     private LocalDateTime createdAt;

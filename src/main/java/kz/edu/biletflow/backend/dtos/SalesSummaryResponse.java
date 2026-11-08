@@ -19,5 +19,7 @@ public class SalesSummaryResponse {
         private long ticketsSold;
         private long ticketsReserved;
         private BigDecimal revenue;
+        private BigDecimal processingFees;
+        private BigDecimal estimatedPayout;
     }
 }

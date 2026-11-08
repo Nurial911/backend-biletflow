@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Backend for **BiletFlow**, an event-ticketing platform (university SWE project, SRS v0.3).
 Spring Boot 4.1 / Java 21 / PostgreSQL 16, REST API secured with stateless JWT.
-Implemented so far: auth, users, organizer profiles, venues, events (with poster images), ticket types, orders, tickets (mock payment), QR images, check-in staff + scanning.
+Implemented so far: auth, users, organizer profiles, venues, events (with poster images), ticket types, orders, tickets (simulated payments), QR images, check-in staff + scanning, append-only audit log (written, no read API yet).
 Also: admin event suspension + role management, organizer sales dashboard API.
-Not implemented yet: paid-sales activation, PDF tickets, email/notifications, refunds, promo codes/campaign QR, support cases, campaign/attendance analytics, audit log, payouts.
+Not implemented yet: paid-sales activation, PDF tickets, email/notifications, refunds, promo codes/campaign QR, support cases, campaign/attendance analytics, activity timeline, payouts.
 `BiletFlow_SRS_Initial_Draft.pdf` (v0.3, in the user's Downloads) is the requirements source.
 
 ## Commands
@@ -42,6 +42,7 @@ All config comes from env vars (see `.env`, `docker-compose.yml`, `src/main/reso
 
 - `.env` holds real secrets — never commit it, never print its values.
 - Schema is managed by Hibernate `ddl-auto=update` (no Flyway/Liquibase yet). Changing an entity changes the DB schema on next start; renames/removals are not migrated.
+- Hibernate adds a CHECK constraint listing the values of every `@Enumerated(STRING)` column, and `ddl-auto=update` never widens it. A new value in an existing enum (e.g. `TicketStatus.REFUNDED`) fails on insert until `<table>_<column>_check` is dropped or replaced on existing databases.
 
 **YAML nesting matters:** `jwt` lives under `spring:` (read by `JwtConfig` as `spring.jwt.*`), while `app`, `server` and
 `springdoc` must stay at the top level (`app.seed.enabled`, `app.cors.allowed-origins` are read by `DataSeeder` / `SecurityConfig`).
@@ -80,6 +81,7 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
 - **Status changes** never go through plain update DTOs — they have dedicated endpoints (`/publish`, `/unpublish`, `/cancel`, `/hide`, `/unhide`).
 - Create endpoints return **201** with a `Location` header (`ServletUriComponentsBuilder`). Lists are paged (`Pageable` → `Page<Dto>`), except ticket types (plain `List`).
 - Mark write methods `@Transactional`, reads `@Transactional(readOnly = true)`. `open-in-view` is off, so touch lazy relations inside the transaction.
+- **Audit**: organizer, staff, admin and payment actions call `AuditService.record(...)` inside the action's own transaction (it is `MANDATORY`), so they commit or roll back together. Add new actions to `AuditAction`. `AuditLogRepository` only exposes `save`; entries are never edited or deleted. Don't put ticket codes in descriptions.
 - Times are `LocalDateTime` (Asia/Almaty, no zone stored). Money is `BigDecimal(12,2)` in KZT; price 0 = free.
 
 ## Domain rules (implemented)
@@ -96,16 +98,16 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
   JPEG/PNG/WebP up to 5 MB (413 above), type detected from magic bytes (`PosterFormat`), no resizing. Files live in `UPLOADS_DIR` as `<uuid>.<ext>` (`PosterStorage`); `Event.posterKey` holds the name.
   `EventResponse.posterUrl` is absolute with `?v=<key>`, so the GET is cached for 30 days. File deletes run after commit; new files are removed on rollback. `duplicate` copies the poster file.
 - **Ticket types**: belong to an event; only its organizer can create/update/hide. Sum of quantities (hidden included) must not exceed event capacity. Sales window must end before event start. Hidden types are visible only to owner/admin. `sold` = PAID + unexpired PENDING order items; price can't change and quantity can't drop below `sold` once any are sold/reserved.
-- **Orders**: `POST /api/orders` (any authenticated user) reserves inventory for `app.orders.hold-minutes` (default 15) under a row lock on each ticket type (`findByIdForUpdate`). Free orders (total 0) are PAID immediately; otherwise `POST /api/orders/{id}/pay` (mock, always succeeds) → PAID and issues one `Ticket` (UUID `code`, for the QR) per unit. Pay and cancel lock the order row (`findByIdForUpdate`) so concurrent requests can't issue tickets twice. `PENDING → CANCELLED` by owner, `PENDING → EXPIRED` by `OrderExpiryScheduler` (every minute). Others' orders/tickets return 404. Endpoints: `/api/orders`, `/api/tickets`; `GET /api/tickets/{id}/qr` returns a PNG of the ticket `code` (owner/admin).
+- **Orders**: `POST /api/orders` (any authenticated user) reserves inventory for `app.orders.hold-minutes` (default 15) under a row lock on each ticket type (`findByIdForUpdate`). Free orders (total 0) are PAID immediately; otherwise `POST /api/orders/{id}/pay` (simulated; no provider, no money moves) → PAID and issues one `Ticket` (UUID `code`, for the QR) per unit. Each attempt writes a `Payment` (`simulated=true`, reference `SIM-<uuid>`, listed by `GET /api/orders/{id}/payments`). Optional body `{"simulatedOutcome":"DECLINED"}` answers 402, keeps a FAILED payment (`noRollbackFor`), issues nothing and leaves the order PENDING for a retry. `app.payments.processing-fee-percent` (default 2.5, a placeholder) is deducted from the organizer's payout, not added to the attendee's total. `attendeeName` on the order is optional, defaults to `User.fullName` then email, and is copied to each ticket. Pay and cancel lock the order row (`findByIdForUpdate`) so concurrent requests can't issue tickets twice. `PENDING → CANCELLED` by owner, `PENDING → EXPIRED` by `OrderExpiryScheduler` (every minute). Others' orders/tickets return 404. Endpoints: `/api/orders`, `/api/tickets`; `GET /api/tickets/{id}/qr` returns a PNG of the ticket `code` (owner/admin).
 - **Event suspension** (moderation, PLATFORM_ADMIN only): `POST /api/events/{id}/suspend` (optional body `{reason}`, ≤500 chars) / `/unsuspend`. A separate `suspended` flag, not a status, so unsuspend restores the previous state; CANCELLED events can't be suspended.
   A suspended event is invisible to everyone but owner/admin (404, also hidden from lists and its ticket types), new orders and payments are refused, and PENDING orders → CANCELLED. PAID orders/tickets stay valid and check-in keeps working.
   The organizer can still see it (with `suspensionReason`) and cancel it, but every other change (edit, publish/unpublish, duplicate, poster, ticket types) is a 400.
 - **Organizer sales** (`/api/organizer`, `SalesService`): `GET /sales/events[?eventIds=1,2]` (ORGANIZER; own events + `totals`), `GET /events/{id}/sales` (adds `salesByDay`), `GET /events/{id}/orders?status=&q=` (paged, `q` = part of buyer email). Per-event endpoints also allow PLATFORM_ADMIN; anyone else (incl. foreign ids in `eventIds`) gets 404.
-  Counting: sold/revenue = PAID orders only (free tickets count, revenue 0; revenue uses `OrderItem.unitPrice` snapshots); pending = unexpired PENDING (reserved, not revenue); cancelled/expired counted separately. No refunds yet — subtract them here once added. All figures come from grouped queries (`OrderItemRepository.aggregateSalesByTicketType`, `OrderRepository.countOrdersByEvent`), not per-order loops.
+  Counting: sold/revenue = PAID orders only (free tickets count, revenue 0; revenue uses `OrderItem.unitPrice` snapshots); pending = unexpired PENDING (reserved, not revenue); cancelled/expired counted separately; `processingFees` = SUCCEEDED payments, `estimatedPayout` = revenue minus fees. No refunds yet — subtract them here once added. All figures come from grouped queries (`OrderItemRepository.aggregateSalesByTicketType`, `OrderRepository.countOrdersByEvent`), not per-order loops.
   Note: `TicketTypeResponse.sold` (public endpoint) means PAID + reserved; the sales API splits them into `sold` and `reserved`.
 - **Event cancel** also flips the event's VALID tickets → CANCELLED and PENDING orders → CANCELLED (bulk updates). PAID orders stay PAID until refunds exist.
 - **Check-in staff**: the organizer assigns `EVENT_ADMIN` users by email via `/api/events/{eventId}/staff` (POST/GET/DELETE). The GET is public at the filter level, so the service returns 404 to anyone but owner/admin.
-- **Check-in** (`/api/check-in/**`, roles EVENT_ADMIN/ORGANIZER/PLATFORM_ADMIN; allowed for assigned staff, the event's organizer, admins — others get 404): `GET /events` (assigned events), `POST /events/{id}/scan {code}`, `POST /events/{id}/tickets/{ticketId}/undo`, `GET /events/{id}/attendees?q=` (email part or exact code), `GET /events/{id}/stats`.
+- **Check-in** (`/api/check-in/**`, roles EVENT_ADMIN/ORGANIZER/PLATFORM_ADMIN; allowed for assigned staff, the event's organizer, admins — others get 404): `GET /events` (assigned events), `POST /events/{id}/scan {code}`, `POST /events/{id}/tickets/{ticketId}/undo`, `GET /events/{id}/attendees?q=` (part of email or name, or exact code), `GET /events/{id}/stats`.
   A scan always answers **200** with `CheckInResult` (`CHECKED_IN, ALREADY_USED, CANCELLED, WRONG_EVENT, INVALID`) — the scan result is data for the app, not an error. Tickets are row-locked during scan/undo; every check-in and undo is appended to `check_in_records`.
 
 ## Demo data

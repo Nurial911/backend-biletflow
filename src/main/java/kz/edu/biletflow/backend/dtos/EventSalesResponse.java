@@ -31,6 +31,9 @@ public class EventSalesResponse {
     private long ticketsSold;
     private long ticketsReserved;
     private BigDecimal revenue;
+    // Simulated figures: fees of successful payments, and revenue minus those fees.
+    private BigDecimal processingFees;
+    private BigDecimal estimatedPayout;
 
     private List<TicketTypeSalesResponse> ticketTypes;
 

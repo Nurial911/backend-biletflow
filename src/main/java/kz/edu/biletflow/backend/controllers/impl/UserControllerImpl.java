@@ -35,8 +35,8 @@ public class UserControllerImpl implements UserController {
     }
 
     @Override
-    public ResponseEntity<Void> deleteUser(Long id) {
-        userService.deleteUser(id);
+    public ResponseEntity<Void> deleteUser(UserPrincipal currentUser, Long id) {
+        userService.deleteUser(currentUser.getId(), id);
         return ResponseEntity.noContent().build();
     }
 
@@ -58,7 +58,7 @@ public class UserControllerImpl implements UserController {
 
     @Override
     public ResponseEntity<Void> deleteOwnAccount(UserPrincipal currentUser) {
-        userService.deleteUser(currentUser.getId());
+        userService.deleteUser(currentUser.getId(), currentUser.getId());
         return ResponseEntity.noContent().build();
     }
 }

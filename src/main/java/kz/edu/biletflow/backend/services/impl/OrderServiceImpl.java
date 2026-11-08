@@ -3,11 +3,14 @@ package kz.edu.biletflow.backend.services.impl;
 import kz.edu.biletflow.backend.dtos.CreateOrderRequest;
 import kz.edu.biletflow.backend.dtos.OrderItemRequest;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
+import kz.edu.biletflow.backend.dtos.PaymentResponse;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
+import kz.edu.biletflow.backend.exception.PaymentDeclinedException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.*;
+import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -27,7 +31,11 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
+    private static final String DECLINED_REASON = "Simulated payment declined";
+
     private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
+    private final AuditService auditService;
     private final OrderItemRepository orderItemRepository;
     private final TicketRepository ticketRepository;
     private final TicketTypeRepository ticketTypeRepository;
@@ -37,6 +45,10 @@ public class OrderServiceImpl implements OrderService {
 
     @Value("${app.orders.hold-minutes:15}")
     private int holdMinutes;
+
+    // Placeholder rate: the SRS leaves the real one undecided. Deducted from the organizer's payout (SRS 3.3).
+    @Value("${app.payments.processing-fee-percent:2.5}")
+    private BigDecimal processingFeePercent;
 
     @Override
     @Transactional
@@ -52,8 +64,12 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
+        User buyer = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
         Order order = new Order();
-        order.setUser(userRepository.getReferenceById(userId));
+        order.setUser(buyer);
+        order.setAttendeeName(resolveAttendeeName(request.getAttendeeName(), buyer));
         order.setEvent(event);
         order.setExpiresAt(now.plusMinutes(holdMinutes));
 
@@ -93,8 +109,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    @Transactional
-    public OrderResponse payOrder(Long userId, Long orderId) {
+    @Transactional(noRollbackFor = PaymentDeclinedException.class) // the FAILED payment must be kept
+    public OrderResponse payOrder(Long userId, Long orderId, SimulatedPaymentOutcome outcome) {
         Order order = getOwnedOrderForUpdate(userId, orderId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -110,10 +126,22 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessRuleViolationException("The event is no longer available");
         }
 
-        // TODO (payments): call a real payment provider here; for now payment always succeeds.
+        // Simulation only (SRS 3.2): no provider is called and no money moves. A real or sandbox
+        // provider would be called here, and its answer would replace the requested outcome.
+        Long eventId = order.getEvent().getId();
+        if (outcome == SimulatedPaymentOutcome.DECLINED) {
+            Payment failed = savePayment(order, PaymentStatus.FAILED, BigDecimal.ZERO, DECLINED_REASON);
+            auditService.record(userId, AuditAction.PAYMENT_FAILED, failed.getId(), eventId,
+                    "Simulated payment of " + order.getTotalAmount() + " KZT declined for order #" + order.getId());
+            throw new PaymentDeclinedException(DECLINED_REASON + ", no tickets were issued. You can try again until the hold expires.");
+        }
+
         markPaid(order, now);
         Order saved = orderRepository.save(order);
+        Payment payment = savePayment(saved, PaymentStatus.SUCCEEDED, processingFee(saved.getTotalAmount()), null);
         issueTickets(saved);
+        auditService.record(userId, AuditAction.PAYMENT_SUCCEEDED, payment.getId(), eventId,
+                "Simulated payment of " + saved.getTotalAmount() + " KZT for order #" + saved.getId());
         return orderMapper.toDto(saved);
     }
 
@@ -137,12 +165,16 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public OrderResponse getOrderById(Long orderId, Long requesterId, boolean isPlatformAdmin) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
-        if (!isPlatformAdmin && !order.getUser().getId().equals(requesterId)) {
-            throw new ResourceNotFoundException("Order not found with id: " + orderId);
-        }
-        return orderMapper.toDto(order);
+        return orderMapper.toDto(getViewableOrder(orderId, requesterId, isPlatformAdmin));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentResponse> getOrderPayments(Long orderId, Long requesterId, boolean isPlatformAdmin) {
+        getViewableOrder(orderId, requesterId, isPlatformAdmin);
+        return paymentRepository.findAllByOrderIdOrderByIdAsc(orderId).stream()
+                .map(orderMapper::toDto)
+                .toList();
     }
 
     @Override
@@ -158,11 +190,37 @@ public class OrderServiceImpl implements OrderService {
         order.setPaidAt(now);
     }
 
+    private Payment savePayment(Order order, PaymentStatus status, BigDecimal fee, String failureReason) {
+        Payment payment = new Payment();
+        payment.setReference("SIM-" + UUID.randomUUID());
+        payment.setOrder(order);
+        payment.setStatus(status);
+        payment.setAmount(order.getTotalAmount());
+        payment.setProcessingFee(fee);
+        payment.setFailureReason(failureReason);
+        return paymentRepository.save(payment);
+    }
+
+    private BigDecimal processingFee(BigDecimal amount) {
+        return amount.multiply(processingFeePercent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    }
+
+    private String resolveAttendeeName(String requested, User buyer) {
+        if (requested != null && !requested.isBlank()) {
+            return requested.trim();
+        }
+        if (buyer.getFullName() != null && !buyer.getFullName().isBlank()) {
+            return buyer.getFullName().trim();
+        }
+        return buyer.getEmail();
+    }
+
     private void issueTickets(Order order) {
         for (OrderItem item : order.getItems()) {
             for (int i = 0; i < item.getQuantity(); i++) {
                 Ticket ticket = new Ticket();
                 ticket.setCode(UUID.randomUUID().toString());
+                ticket.setAttendeeName(order.getAttendeeName());
                 ticket.setOrder(order);
                 ticket.setEvent(order.getEvent());
                 ticket.setTicketType(item.getTicketType());
@@ -228,6 +286,16 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessRuleViolationException(
                     "Not enough '" + ticketType.getName() + "' tickets left. Available: " + Math.max(available, 0));
         }
+    }
+
+    // Someone else's order is reported as missing, so its existence isn't revealed.
+    private Order getViewableOrder(Long orderId, Long requesterId, boolean isPlatformAdmin) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        if (!isPlatformAdmin && !order.getUser().getId().equals(requesterId)) {
+            throw new ResourceNotFoundException("Order not found with id: " + orderId);
+        }
+        return order;
     }
 
     // Locked until the transaction ends, so pay and cancel on one order run one after the other.

@@ -36,6 +36,10 @@ public class Order {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // Name printed on this order's tickets. Null only on orders created before the column existed.
+    @Column(name = "attendee_name", length = 200)
+    private String attendeeName;
+
     // Inventory of a PENDING order is reserved until this moment.
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;

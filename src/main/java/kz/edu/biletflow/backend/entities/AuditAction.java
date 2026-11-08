@@ -1,0 +1,36 @@
+package kz.edu.biletflow.backend.entities;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
+public enum AuditAction {
+    EVENT_CREATED("EVENT"),
+    EVENT_UPDATED("EVENT"),
+    EVENT_PUBLISHED("EVENT"),
+    EVENT_UNPUBLISHED("EVENT"),
+    EVENT_CANCELLED("EVENT"),
+    EVENT_DUPLICATED("EVENT"),
+    EVENT_SUSPENDED("EVENT"),
+    EVENT_UNSUSPENDED("EVENT"),
+
+    TICKET_TYPE_CREATED("TICKET_TYPE"),
+    TICKET_TYPE_UPDATED("TICKET_TYPE"),
+    TICKET_TYPE_HIDDEN("TICKET_TYPE"),
+    TICKET_TYPE_UNHIDDEN("TICKET_TYPE"),
+
+    STAFF_ASSIGNED("STAFF_ASSIGNMENT"),
+    STAFF_REMOVED("STAFF_ASSIGNMENT"),
+
+    PAYMENT_SUCCEEDED("PAYMENT"),
+    PAYMENT_FAILED("PAYMENT"),
+
+    TICKET_CHECKED_IN("TICKET"),
+    TICKET_CHECK_IN_UNDONE("TICKET"),
+
+    USER_ROLE_CHANGED("USER"),
+    USER_DELETED("USER");
+
+    private final String entityType;
+}

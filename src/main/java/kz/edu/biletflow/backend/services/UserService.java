@@ -13,7 +13,7 @@ public interface UserService {
 
     UserResponse changeRole(Long adminId, Long userId, User.Role role);
 
-    void deleteUser(Long id);
+    void deleteUser(Long actorId, Long id);
 
     Page<UserResponse> getAllUsers(Pageable pageable);
 }
