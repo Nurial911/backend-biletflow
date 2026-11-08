@@ -24,12 +24,12 @@ docker compose up -d db         # then DB_URL=jdbc:postgresql://localhost:5432/<
 ./mvnw clean package            # build jar (runs tests)
 ./mvnw -DskipTests package      # build without tests
 ./mvnw spring-boot:run          # run locally; needs DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET env vars
-./mvnw test                     # run tests
+./mvnw test                     # run tests (Docker must be running)
 ./mvnw test -Dtest=ClassName#method   # single test
 ```
 
 - API: http://localhost:8080 — Swagger UI: http://localhost:8080/swagger-ui.html (use **Authorize** with the `accessToken` from `/api/auth/login`).
-- Only test today is `BackendApplicationTests.contextLoads()`, a full `@SpringBootTest` — it needs a reachable Postgres and `JWT_SECRET`, so it fails without the env vars.
+- Tests extend `IntegrationTestBase`: the full app on a random port against a throwaway Testcontainers Postgres, no env vars needed. `CoreFlowIntegrationTest` drives order → payment → ticket → QR → scan over HTTP, including the concurrency cases. Each test creates its own users and event. Use real Postgres, not H2: inventory, payment and scan rely on row locks.
 - When running outside Docker, add `-Duser.timezone=Asia/Almaty` (Docker sets it) so `@Future` checks and `LocalDateTime.now()` match user input.
 
 ## Configuration
@@ -37,7 +37,8 @@ docker compose up -d db         # then DB_URL=jdbc:postgresql://localhost:5432/<
 All config comes from env vars (see `.env`, `docker-compose.yml`, `src/main/resources/application.yaml`):
 `POSTGRES_DB/USER/PASSWORD` (compose), `DB_URL/DB_USERNAME/DB_PASSWORD`, `JWT_SECRET` (≥64 chars, HS512),
 `JWT_EXPIRATION_MS` (default 1 day), `CORS_ALLOWED_ORIGINS`, `DDL_AUTO` (default `update`), `SEED_DATA`,
-`UPLOADS_DIR` (poster files; default `./uploads`, `/app/uploads` on the `uploads` Docker volume in compose).
+`UPLOADS_DIR` (poster files; default `./uploads`, `/app/uploads` on the `uploads` Docker volume in compose),
+`BACKEND_BIND` (compose only; address port 8080 is published on, default `127.0.0.1`, use `0.0.0.0` to reach it from a phone on the LAN).
 
 - `.env` holds real secrets — never commit it, never print its values.
 - Schema is managed by Hibernate `ddl-auto=update` (no Flyway/Liquibase yet). Changing an entity changes the DB schema on next start; renames/removals are not migrated.
@@ -95,7 +96,7 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
   JPEG/PNG/WebP up to 5 MB (413 above), type detected from magic bytes (`PosterFormat`), no resizing. Files live in `UPLOADS_DIR` as `<uuid>.<ext>` (`PosterStorage`); `Event.posterKey` holds the name.
   `EventResponse.posterUrl` is absolute with `?v=<key>`, so the GET is cached for 30 days. File deletes run after commit; new files are removed on rollback. `duplicate` copies the poster file.
 - **Ticket types**: belong to an event; only its organizer can create/update/hide. Sum of quantities (hidden included) must not exceed event capacity. Sales window must end before event start. Hidden types are visible only to owner/admin. `sold` = PAID + unexpired PENDING order items; price can't change and quantity can't drop below `sold` once any are sold/reserved.
-- **Orders**: `POST /api/orders` (any authenticated user) reserves inventory for `app.orders.hold-minutes` (default 15) under a row lock on each ticket type (`findByIdForUpdate`). Free orders (total 0) are PAID immediately; otherwise `POST /api/orders/{id}/pay` (mock, always succeeds) → PAID and issues one `Ticket` (UUID `code`, for the QR) per unit. `PENDING → CANCELLED` by owner, `PENDING → EXPIRED` by `OrderExpiryScheduler` (every minute). Others' orders/tickets return 404. Endpoints: `/api/orders`, `/api/tickets`; `GET /api/tickets/{id}/qr` returns a PNG of the ticket `code` (owner/admin).
+- **Orders**: `POST /api/orders` (any authenticated user) reserves inventory for `app.orders.hold-minutes` (default 15) under a row lock on each ticket type (`findByIdForUpdate`). Free orders (total 0) are PAID immediately; otherwise `POST /api/orders/{id}/pay` (mock, always succeeds) → PAID and issues one `Ticket` (UUID `code`, for the QR) per unit. Pay and cancel lock the order row (`findByIdForUpdate`) so concurrent requests can't issue tickets twice. `PENDING → CANCELLED` by owner, `PENDING → EXPIRED` by `OrderExpiryScheduler` (every minute). Others' orders/tickets return 404. Endpoints: `/api/orders`, `/api/tickets`; `GET /api/tickets/{id}/qr` returns a PNG of the ticket `code` (owner/admin).
 - **Event suspension** (moderation, PLATFORM_ADMIN only): `POST /api/events/{id}/suspend` (optional body `{reason}`, ≤500 chars) / `/unsuspend`. A separate `suspended` flag, not a status, so unsuspend restores the previous state; CANCELLED events can't be suspended.
   A suspended event is invisible to everyone but owner/admin (404, also hidden from lists and its ticket types), new orders and payments are refused, and PENDING orders → CANCELLED. PAID orders/tickets stay valid and check-in keeps working.
   The organizer can still see it (with `suspensionReason`) and cancel it, but every other change (edit, publish/unpublish, duplicate, poster, ticket types) is a 400.
@@ -109,7 +110,7 @@ exception/          custom exceptions + GlobalExceptionHandler (@RestControllerA
 
 ## Demo data
 
-`DataSeeder` (when `SEED_DATA=true` → `app.seed.enabled`; default `true` in docker-compose, `false` otherwise) creates users `admin@`, `attendee@`, `scanner@`, `organizer1@`, `organizer2@biletflow.kz`, all with password `Password123!`, plus venues, events in every status/visibility, and ticket types. Skips if the admin already exists. Never enable in production.
+`DataSeeder` (when `SEED_DATA=true` → `app.seed.enabled`; default `false`, set `SEED_DATA=true` in a local `.env` to opt in) creates users `admin@`, `attendee@`, `scanner@`, `organizer1@`, `organizer2@biletflow.kz`, all with password `Password123!`, plus venues, events in every status/visibility, and ticket types. Skips if the admin already exists. Never enable in production.
 
 ## Housekeeping notes
 
