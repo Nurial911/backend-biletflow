@@ -7,6 +7,7 @@ import kz.edu.biletflow.backend.exception.BadCredentialsException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.UserRepository;
+import kz.edu.biletflow.backend.services.AccountEmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ public class AuthServiceImpl {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final UserMapper userMapper;
+    private final AccountEmailService accountEmailService;
 
     public JwtAuthResponse login(LoginRequest request) {
         // emails are stored lowercase (seeder, register), so match case-insensitively
@@ -48,6 +50,7 @@ public class AuthServiceImpl {
         newUser.setRole(User.Role.ATTENDEE);
 
         User savedUser = userRepository.save(newUser);
+        accountEmailService.sendVerification(savedUser);
 
         UserResponse userDto = userMapper.toDto(savedUser);
         String token = jwtService.generateToken(savedUser);

@@ -7,6 +7,7 @@ import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.EventMapper;
 import kz.edu.biletflow.backend.mappers.TicketMapper;
 import kz.edu.biletflow.backend.repositories.*;
+import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.CheckInService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,6 +28,7 @@ public class CheckInServiceImpl implements CheckInService {
     private final UserRepository userRepository;
     private final EventMapper eventMapper;
     private final TicketMapper ticketMapper;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -39,6 +41,11 @@ public class CheckInServiceImpl implements CheckInService {
     @Transactional
     public CheckInResponse scan(Long eventId, String code, Long staffId, boolean isPlatformAdmin) {
         Event event = getCheckInEvent(eventId, staffId, isPlatformAdmin);
+
+        // A Campaign QR code is a link, so the lookup below would reject it anyway. This tells staff why (SRS 4.14).
+        if (code.contains("promo=")) {
+            return new CheckInResponse(CheckInResult.INVALID, "This is a promotional QR code, not a ticket", null, null);
+        }
 
         // Locked so two scanners reading the same ticket at once can't both admit it.
         Optional<Ticket> found = ticketRepository.findByCodeForUpdate(code.trim());
@@ -62,6 +69,8 @@ public class CheckInServiceImpl implements CheckInService {
         ticket.setStatus(TicketStatus.USED);
         ticket.setUsedAt(LocalDateTime.now());
         record(ticket, staffId, CheckInAction.CHECK_IN);
+        auditService.record(staffId, AuditAction.TICKET_CHECKED_IN, ticket.getId(), eventId,
+                "Ticket #" + ticket.getId() + " checked in");
         return new CheckInResponse(CheckInResult.CHECKED_IN, "Checked in",
                 ticket.getUsedAt(), ticketMapper.toDto(ticket));
     }
@@ -80,6 +89,8 @@ public class CheckInServiceImpl implements CheckInService {
         ticket.setStatus(TicketStatus.VALID);
         ticket.setUsedAt(null);
         record(ticket, staffId, CheckInAction.UNDO);
+        auditService.record(staffId, AuditAction.TICKET_CHECK_IN_UNDONE, ticket.getId(), eventId,
+                "Check-in of ticket #" + ticket.getId() + " undone");
         return ticketMapper.toDto(ticket);
     }
 

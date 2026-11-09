@@ -29,6 +29,10 @@ public class Ticket {
     @Column(name = "status", nullable = false)
     private TicketStatus status = TicketStatus.VALID;
 
+    // Copied from the order when issued. Null only on tickets issued before the column existed.
+    @Column(name = "attendee_name", length = 200)
+    private String attendeeName;
+
     @Column(name = "used_at")
     private LocalDateTime usedAt;
 

@@ -12,4 +12,7 @@ public class UpdateUserRequest {
 
     @Size(min = 6, message = "Password must be at least 6 characters long")
     private String password;
+
+    @Size(max = 200, message = "Full name must be at most 200 characters long")
+    private String fullName;
 }

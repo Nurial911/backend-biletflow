@@ -15,7 +15,9 @@ import kz.edu.biletflow.backend.repositories.OrderRepository;
 import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.repositories.VenueRepository;
+import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.EventService;
+import kz.edu.biletflow.backend.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,11 +30,14 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class EventServiceImpl implements EventService {
     private static final Long ANONYMOUS_ID = -1L;
+    private static final DateTimeFormatter NOTIFICATION_DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
 
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
@@ -41,6 +46,8 @@ public class EventServiceImpl implements EventService {
     private final TicketRepository ticketRepository;
     private final OrderRepository orderRepository;
     private final PosterStorage posterStorage;
+    private final AuditService auditService;
+    private final NotificationService notificationService;
 
     @Transactional
     @Override
@@ -62,7 +69,9 @@ public class EventServiceImpl implements EventService {
         event.setOrganizer(organizer);
         event.setVenue(venue);
         applyVenueCapacity(event);
-        return eventMapper.toDto(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+        audit(organizerId, AuditAction.EVENT_CREATED, saved, "Event '" + saved.getTitle() + "' created");
+        return eventMapper.toDto(saved);
     }
 
     @Transactional(readOnly = true)
@@ -103,6 +112,10 @@ public class EventServiceImpl implements EventService {
         if (event.getStatus() == EventStatus.CANCELLED) {
             throw new BusinessRuleViolationException("A cancelled event cannot be edited.");
         }
+        Integer oldCapacity = event.getCapacity();
+        LocalDateTime oldStart = event.getStartTime();
+        LocalDateTime oldEnd = event.getEndTime();
+        Long oldVenueId = event.getVenue().getId();
         eventMapper.updateEvent(request, event);
 
         if (request.getVenueId() != null){
@@ -118,7 +131,20 @@ public class EventServiceImpl implements EventService {
                 event.getStartTime(),
                 event.getEndTime());
 
-        return eventMapper.toDto(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+        String capacityChange = Objects.equals(oldCapacity, saved.getCapacity())
+                ? "" : ", capacity " + oldCapacity + " -> " + saved.getCapacity();
+        audit(organizerId, AuditAction.EVENT_UPDATED, saved, "Event details updated" + capacityChange);
+        if (!Objects.equals(oldStart, saved.getStartTime()) || !Objects.equals(oldEnd, saved.getEndTime())
+                || !Objects.equals(oldVenueId, saved.getVenue().getId())) {
+            notificationService.notifyUsers(ticketRepository.findOwnerIdsByEvent(eventId, TicketStatus.VALID),
+                    NotificationType.EVENT_UPDATED, "Details changed for " + saved.getTitle(),
+                    "The time or place of \"" + saved.getTitle() + "\" has changed. It now takes place on "
+                            + saved.getStartTime().format(NOTIFICATION_DATE_TIME) + " (Almaty time) at "
+                            + saved.getVenue().getName() + ", " + saved.getVenue().getAddress()
+                            + ". Your ticket stays valid.");
+        }
+        return eventMapper.toDto(saved);
     }
 
     @Transactional
@@ -135,7 +161,9 @@ public class EventServiceImpl implements EventService {
         }
 
         event.setStatus(EventStatus.PUBLISHED);
-        return eventMapper.toDto(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+        audit(organizerId, AuditAction.EVENT_PUBLISHED, saved, "Event published");
+        return eventMapper.toDto(saved);
     }
 
     @Transactional
@@ -149,7 +177,9 @@ public class EventServiceImpl implements EventService {
         }
 
         event.setStatus(EventStatus.DRAFT);
-        return eventMapper.toDto(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+        audit(organizerId, AuditAction.EVENT_UNPUBLISHED, saved, "Event unpublished");
+        return eventMapper.toDto(saved);
     }
 
     @Transactional
@@ -164,10 +194,18 @@ public class EventServiceImpl implements EventService {
         event.setStatus(EventStatus.CANCELLED);
         Event saved = eventRepository.save(event);
 
+        // Before the update below: afterwards nobody holds a VALID ticket any more.
+        notificationService.notifyUsers(ticketRepository.findOwnerIdsByEvent(eventId, TicketStatus.VALID),
+                NotificationType.EVENT_CANCELLED, saved.getTitle() + " has been cancelled",
+                "The organizer cancelled \"" + saved.getTitle() + "\", so your ticket is no longer valid."
+                        + " You can contact the organizer by opening a support case from your order.");
+
         // Cancelled tickets must not admit anyone; unpaid orders can no longer be paid.
         // PAID orders keep their status until refunds exist (they need a refund, not a silent change).
-        ticketRepository.updateStatusByEventId(eventId, TicketStatus.VALID, TicketStatus.CANCELLED);
-        orderRepository.updateStatusByEventId(eventId, OrderStatus.PENDING, OrderStatus.CANCELLED);
+        int tickets = ticketRepository.updateStatusByEventId(eventId, TicketStatus.VALID, TicketStatus.CANCELLED);
+        int orders = orderRepository.updateStatusByEventId(eventId, OrderStatus.PENDING, OrderStatus.CANCELLED);
+        audit(organizerId, AuditAction.EVENT_CANCELLED, saved,
+                "Event cancelled, " + tickets + " tickets and " + orders + " unpaid orders cancelled");
 
         return eventMapper.toDto(saved);
     }
@@ -199,12 +237,14 @@ public class EventServiceImpl implements EventService {
             copy.setPosterKey(copiedKey);
         }
 
-        return eventMapper.toDto(eventRepository.save(copy));
+        Event saved = eventRepository.save(copy);
+        audit(organizerId, AuditAction.EVENT_DUPLICATED, saved, "Draft copied from event #" + eventId);
+        return eventMapper.toDto(saved);
     }
 
     @Transactional
     @Override
-    public EventResponse suspendEvent(Long eventId, @Nullable String reason) {
+    public EventResponse suspendEvent(Long adminId, Long eventId, @Nullable String reason) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
         if (event.isSuspended()) {
@@ -222,13 +262,16 @@ public class EventServiceImpl implements EventService {
         // Stop sales: unpaid reservations are released. PAID orders and their tickets stay valid —
         // a suspension is reversible, so it must not destroy anything a refund would be needed for.
         orderRepository.updateStatusByEventId(eventId, OrderStatus.PENDING, OrderStatus.CANCELLED);
+        audit(adminId, AuditAction.EVENT_SUSPENDED, saved, saved.getSuspensionReason() != null
+                ? "Event suspended: " + saved.getSuspensionReason()
+                : "Event suspended");
 
         return eventMapper.toDto(saved);
     }
 
     @Transactional
     @Override
-    public EventResponse unsuspendEvent(Long eventId) {
+    public EventResponse unsuspendEvent(Long adminId, Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new ResourceNotFoundException("Event not found with id: " + eventId));
         if (!event.isSuspended()) {
@@ -238,7 +281,9 @@ public class EventServiceImpl implements EventService {
         event.setSuspended(false);
         event.setSuspendedAt(null);
         event.setSuspensionReason(null);
-        return eventMapper.toDto(eventRepository.save(event));
+        Event saved = eventRepository.save(event);
+        audit(adminId, AuditAction.EVENT_UNSUSPENDED, saved, "Suspension lifted");
+        return eventMapper.toDto(saved);
     }
 
     @Transactional
@@ -300,6 +345,10 @@ public class EventServiceImpl implements EventService {
         return new PosterImage(posterStorage.load(event.getPosterKey()),
                 PosterFormat.fromKey(event.getPosterKey()).getContentType(),
                 isPublic);
+    }
+
+    private void audit(Long actorId, AuditAction action, Event event, String description) {
+        auditService.record(actorId, action, event.getId(), event.getId(), description);
     }
 
     // Files are not part of the DB transaction: the old poster goes only once the new key is committed,

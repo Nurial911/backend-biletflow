@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +20,8 @@ public interface TicketTypeRepository extends JpaRepository<TicketType, Long> {
     List<TicketType> findAllByEventIdAndHiddenFalseOrderByIdAsc(Long eventId);
 
     List<TicketType> findAllByEventIdInOrderByIdAsc(Collection<Long> eventIds);
+
+    boolean existsByEventIdAndHiddenFalseAndPriceGreaterThan(Long eventId, BigDecimal price);
 
     // Row lock: serializes concurrent purchases of the same ticket type so it can't be oversold.
     @Lock(LockModeType.PESSIMISTIC_WRITE)

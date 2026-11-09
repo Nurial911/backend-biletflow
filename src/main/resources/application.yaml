@@ -17,7 +17,38 @@ spring:
   jwt:
     secret: ${JWT_SECRET}
     tokenExpiration: ${JWT_EXPIRATION_MS:86400000}   # milliseconds
+  mail:   # only used when MAIL_ENABLED=true
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:false}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
+      # Named explicitly so sending doesn't look up this machine's hostname: slow on some hosts, and it would leak into Message-IDs.
+      mail.smtp.localhost: biletflow.kz
+      mail.from: ${MAIL_FROM:no-reply@biletflow.kz}
 app:
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}   # base of links in emails and campaign QR codes
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:no-reply@biletflow.kz}
+  payments:
+    activation-fee-kzt: ${ACTIVATION_FEE_KZT:5000}   # placeholder, the SRS leaves the amount undecided
+    provider: ${PAYMENT_PROVIDER:simulated}          # simulated (no bank), or halyk (Halyk ePay)
+    halyk:
+      client-id: ${HALYK_CLIENT_ID:}
+      client-secret: ${HALYK_CLIENT_SECRET:}
+      terminal-id: ${HALYK_TERMINAL_ID:}
+      # Halyk's test environment. These hosts were confirmed by real test payments; some in its docs are dead.
+      oauth-url: ${HALYK_OAUTH_URL:https://test-epay-oauth.epayment.kz/oauth2/token}
+      api-url: ${HALYK_API_URL:https://test-epay-api.epayment.kz}
+      script-url: ${HALYK_SCRIPT_URL:https://test-epay.epayment.kz/payform/payment-api.js}
+      callback-base-url: ${HALYK_CALLBACK_BASE_URL:}   # public https address of this backend; empty = status checks only
+      test-mode: ${HALYK_TEST_MODE:true}               # false only with live credentials
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
   seed:

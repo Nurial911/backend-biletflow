@@ -3,6 +3,7 @@ package kz.edu.biletflow.backend.services.impl;
 import kz.edu.biletflow.backend.dtos.CreateTicketTypeRequest;
 import kz.edu.biletflow.backend.dtos.TicketTypeResponse;
 import kz.edu.biletflow.backend.dtos.UpdateTicketTypeRequest;
+import kz.edu.biletflow.backend.entities.AuditAction;
 import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.EventStatus;
 import kz.edu.biletflow.backend.entities.OrderStatus;
@@ -15,11 +16,13 @@ import kz.edu.biletflow.backend.mappers.TicketTypeMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrderItemRepository;
 import kz.edu.biletflow.backend.repositories.TicketTypeRepository;
+import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.TicketTypeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -32,6 +35,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     private final TicketTypeRepository ticketTypeRepository;
     private final EventRepository eventRepository;
     private final OrderItemRepository orderItemRepository;
+    private final AuditService auditService;
 
     @Override
     @Transactional
@@ -46,6 +50,9 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         validateCapacity(event, ticketType.getQuantity(), NO_ID);
 
         TicketType savedTicketType = ticketTypeRepository.save(ticketType);
+        audit(organizerId, AuditAction.TICKET_TYPE_CREATED, savedTicketType,
+                "Ticket type '" + savedTicketType.getName() + "' created: price " + savedTicketType.getPrice()
+                        + " KZT, quantity " + savedTicketType.getQuantity());
         return toResponse(savedTicketType);
     }
 
@@ -86,13 +93,24 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         if (request.getQuantity() != null && request.getQuantity() < sold) {
             throw new BusinessRuleViolationException("Quantity cannot be lower than already sold or reserved: " + sold);
         }
+        BigDecimal oldPrice = ticketType.getPrice();
+        int oldQuantity = ticketType.getQuantity();
         ticketTypeMapper.updateTicketType(request, ticketType);
 
         // Validate the merged result so changing a single field is still checked.
         validateSalesWindow(ticketType.getSalesStart(), ticketType.getSalesEnd(), event);
         validateCapacity(event, ticketType.getQuantity(), ticketType.getId());
 
-        return toResponse(ticketTypeRepository.save(ticketType));
+        TicketType saved = ticketTypeRepository.save(ticketType);
+        StringBuilder description = new StringBuilder("Ticket type '" + saved.getName() + "' updated");
+        if (oldPrice.compareTo(saved.getPrice()) != 0) {
+            description.append(", price ").append(oldPrice).append(" -> ").append(saved.getPrice()).append(" KZT");
+        }
+        if (oldQuantity != saved.getQuantity()) {
+            description.append(", quantity ").append(oldQuantity).append(" -> ").append(saved.getQuantity());
+        }
+        audit(organizerId, AuditAction.TICKET_TYPE_UPDATED, saved, description.toString());
+        return toResponse(saved);
     }
 
     @Override
@@ -100,10 +118,17 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     public TicketTypeResponse setHidden(Long organizerId, Long ticketTypeId, boolean hidden) {
         TicketType ticketType = getOwnedTicketType(organizerId, ticketTypeId);
         ticketType.setHidden(hidden);
-        return toResponse(ticketTypeRepository.save(ticketType));
+        TicketType saved = ticketTypeRepository.save(ticketType);
+        audit(organizerId, hidden ? AuditAction.TICKET_TYPE_HIDDEN : AuditAction.TICKET_TYPE_UNHIDDEN, saved,
+                "Ticket type '" + saved.getName() + "' " + (hidden ? "hidden" : "made visible"));
+        return toResponse(saved);
     }
 
     // helpers //
+
+    private void audit(Long actorId, AuditAction action, TicketType ticketType, String description) {
+        auditService.record(actorId, action, ticketType.getId(), ticketType.getEvent().getId(), description);
+    }
 
     private long countSold(TicketType ticketType) {
         return orderItemRepository.countSoldOrReserved(

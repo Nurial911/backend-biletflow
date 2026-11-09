@@ -16,5 +16,6 @@ public class TicketResponse {
     private Long ticketTypeId;
     private String ticketTypeName;
     private String attendeeEmail;
+    private String attendeeName;
     private LocalDateTime usedAt;
 }

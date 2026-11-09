@@ -34,7 +34,7 @@ public interface UserController {
 
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @DeleteMapping("/{id}")
-    ResponseEntity<Void> deleteUser(@PathVariable Long id);
+    ResponseEntity<Void> deleteUser(@AuthenticationPrincipal UserPrincipal currentUser, @PathVariable Long id);
 
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @GetMapping

@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  Opens Halyk's test payment page for an order, for trying the flow without the frontend.
+  It is also the smallest working example of what the frontend has to do.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>BiletFlow Halyk test checkout</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+    textarea { width: 100%; height: 240px; font-family: monospace; }
+    button { margin-top: 12px; padding: 10px 18px; font-size: 16px; }
+    #message { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Halyk test checkout</h1>
+  <p>Paste the whole response of <code>POST /api/orders/{id}/payment-session</code>, then press the button.</p>
+  <textarea id="session" spellcheck="false"></textarea>
+  <button id="pay">Open Halyk's payment page</button>
+  <p id="message"></p>
+  <script>
+    document.getElementById('pay').onclick = function () {
+      var message = document.getElementById('message');
+      message.textContent = '';
+      var session;
+      try {
+        session = JSON.parse(document.getElementById('session').value);
+      } catch (e) {
+        message.textContent = 'That is not valid JSON.';
+        return;
+      }
+      if (session.provider !== 'HALYK') {
+        message.textContent = 'The server is in simulated mode: set PAYMENT_PROVIDER=halyk.';
+        return;
+      }
+      var script = document.createElement('script');
+      script.src = session.scriptUrl;
+      script.onload = function () { halyk.pay(session.payment); };
+      script.onerror = function () { message.textContent = "Could not load Halyk's payment script."; };
+      document.head.appendChild(script);
+    };
+  </script>
+</body>
+</html>

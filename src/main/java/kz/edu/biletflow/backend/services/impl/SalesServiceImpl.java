@@ -12,12 +12,14 @@ import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.Order;
 import kz.edu.biletflow.backend.entities.OrderItem;
 import kz.edu.biletflow.backend.entities.OrderStatus;
+import kz.edu.biletflow.backend.entities.PaymentStatus;
 import kz.edu.biletflow.backend.entities.TicketType;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrderItemRepository;
 import kz.edu.biletflow.backend.repositories.OrderRepository;
+import kz.edu.biletflow.backend.repositories.PaymentRepository;
 import kz.edu.biletflow.backend.repositories.TicketTypeRepository;
 import kz.edu.biletflow.backend.services.SalesService;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +47,7 @@ public class SalesServiceImpl implements SalesService {
     private final TicketTypeRepository ticketTypeRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final PaymentRepository paymentRepository;
     private final OrderMapper orderMapper;
 
     @Override
@@ -66,7 +69,15 @@ public class SalesServiceImpl implements SalesService {
         SalesSummaryResponse.Totals totals = new SalesSummaryResponse.Totals();
         totals.setEvents(eventSales.size());
         totals.setRevenue(money(BigDecimal.ZERO));
+        totals.setDiscounts(money(BigDecimal.ZERO));
+        totals.setNetRevenue(money(BigDecimal.ZERO));
+        totals.setProcessingFees(money(BigDecimal.ZERO));
+        totals.setEstimatedPayout(money(BigDecimal.ZERO));
         for (EventSalesResponse e : eventSales) {
+            totals.setDiscounts(totals.getDiscounts().add(e.getDiscounts()));
+            totals.setNetRevenue(totals.getNetRevenue().add(e.getNetRevenue()));
+            totals.setProcessingFees(totals.getProcessingFees().add(e.getProcessingFees()));
+            totals.setEstimatedPayout(totals.getEstimatedPayout().add(e.getEstimatedPayout()));
             totals.setPaidOrders(totals.getPaidOrders() + e.getPaidOrders());
             totals.setPendingOrders(totals.getPendingOrders() + e.getPendingOrders());
             totals.setTicketsSold(totals.getTicketsSold() + e.getTicketsSold());
@@ -158,6 +169,14 @@ public class SalesServiceImpl implements SalesService {
                         OrderStatus.CANCELLED, OrderStatus.EXPIRED, now).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> row));
 
+        Map<Long, BigDecimal> feesByEvent = paymentRepository
+                .sumProcessingFeesByEvent(eventIds, PaymentStatus.SUCCEEDED).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> toMoney(row[1])));
+
+        Map<Long, BigDecimal> discountsByEvent = orderRepository
+                .sumDiscountsByEvent(eventIds, OrderStatus.PAID).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> toMoney(row[1])));
+
         List<EventSalesResponse> result = new ArrayList<>();
         for (Event event : events) {
             EventSalesResponse dto = new EventSalesResponse();
@@ -207,6 +226,13 @@ public class SalesServiceImpl implements SalesService {
             dto.setTicketsSold(sold);
             dto.setTicketsReserved(reserved);
             dto.setRevenue(money(revenue));
+            BigDecimal discounts = discountsByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
+            BigDecimal netRevenue = money(revenue).subtract(discounts);
+            dto.setDiscounts(discounts);
+            dto.setNetRevenue(netRevenue);
+            BigDecimal fees = feesByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
+            dto.setProcessingFees(fees);
+            dto.setEstimatedPayout(netRevenue.subtract(fees));
             result.add(dto);
         }
         return result;

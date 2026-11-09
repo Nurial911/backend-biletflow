@@ -26,5 +26,7 @@ public abstract class IntegrationTestBase {
         registry.add("DB_PASSWORD", POSTGRES::getPassword);
         registry.add("JWT_SECRET", () -> "integration-test-only-secret-".repeat(4));
         registry.add("SEED_DATA", () -> "false");
+        // Tests deliver queued emails themselves, so the background dispatcher must stay out of the way.
+        registry.add("app.mail.dispatch-delay-ms", () -> "3600000");
     }
 }

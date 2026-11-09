@@ -95,14 +95,14 @@ public class EventControllerImpl implements EventController {
     }
 
     @Override
-    public ResponseEntity<EventResponse> suspendEvent(Long eventId, SuspendEventRequest request) {
+    public ResponseEntity<EventResponse> suspendEvent(UserPrincipal currentUser, Long eventId, SuspendEventRequest request) {
         String reason = request != null ? request.getReason() : null;
-        return ResponseEntity.ok(eventService.suspendEvent(eventId, reason));
+        return ResponseEntity.ok(eventService.suspendEvent(currentUser.getId(), eventId, reason));
     }
 
     @Override
-    public ResponseEntity<EventResponse> unsuspendEvent(Long eventId) {
-        return ResponseEntity.ok(eventService.unsuspendEvent(eventId));
+    public ResponseEntity<EventResponse> unsuspendEvent(UserPrincipal currentUser, Long eventId) {
+        return ResponseEntity.ok(eventService.unsuspendEvent(currentUser.getId(), eventId));
     }
 
     @Override

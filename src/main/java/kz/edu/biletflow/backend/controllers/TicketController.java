@@ -22,4 +22,9 @@ public interface TicketController {
     @GetMapping("/{ticketId}/qr")
     ResponseEntity<byte[]> getTicketQr(@AuthenticationPrincipal UserPrincipal currentUser,
                                        @PathVariable Long ticketId);
+
+    // application/pdf, print-optimized A4. Same access rule as the QR: owner or platform admin.
+    @GetMapping("/{ticketId}/pdf")
+    ResponseEntity<byte[]> getTicketPdf(@AuthenticationPrincipal UserPrincipal currentUser,
+                                        @PathVariable Long ticketId);
 }

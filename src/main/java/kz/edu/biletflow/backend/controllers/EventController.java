@@ -64,12 +64,14 @@ public interface EventController {
     // Moderation: hides the event from everyone but owner/admin, stops sales, cancels unpaid orders.
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @PostMapping("/{eventId}/suspend")
-    ResponseEntity<EventResponse> suspendEvent(@PathVariable Long eventId,
+    ResponseEntity<EventResponse> suspendEvent(@AuthenticationPrincipal UserPrincipal currentUser,
+                                               @PathVariable Long eventId,
                                                @Valid @RequestBody(required = false) SuspendEventRequest request);
 
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @PostMapping("/{eventId}/unsuspend")
-    ResponseEntity<EventResponse> unsuspendEvent(@PathVariable Long eventId);
+    ResponseEntity<EventResponse> unsuspendEvent(@AuthenticationPrincipal UserPrincipal currentUser,
+                                                 @PathVariable Long eventId);
 
     // JPEG, PNG or WebP, at most 5 MB. Replaces the current poster.
     @PreAuthorize("hasRole('ORGANIZER')")

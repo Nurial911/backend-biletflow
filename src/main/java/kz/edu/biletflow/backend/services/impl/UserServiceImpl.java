@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.services.impl;
 
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
+import kz.edu.biletflow.backend.entities.AuditAction;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
@@ -11,6 +12,8 @@ import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
 import kz.edu.biletflow.backend.repositories.StaffAssignmentRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
+import kz.edu.biletflow.backend.services.AccountEmailService;
+import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,6 +32,8 @@ public class UserServiceImpl implements UserService {
     private final StaffAssignmentRepository staffAssignmentRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
+    private final AccountEmailService accountEmailService;
 
     @Override
     public UserResponse getUserById(Long id) {
@@ -51,13 +56,21 @@ public class UserServiceImpl implements UserService {
             throw new DuplicateResourceException("Email " + request.getEmail() + " is already registered");
         }
 
+        boolean emailChanged = request.getEmail() != null && !request.getEmail().equals(user.getEmail());
+
         userMapper.updateUser(request, user);
 
         if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
+        if (emailChanged) {
+            user.setVerificationStatus(false); // the new address hasn't been confirmed
+        }
 
         User savedUser = userRepository.save(user);
+        if (emailChanged) {
+            accountEmailService.sendVerification(savedUser);
+        }
         return userMapper.toDto(savedUser);
     }
 
@@ -90,14 +103,18 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setRole(role);
-        return userMapper.toDto(userRepository.save(user));
+        User saved = userRepository.save(user);
+        auditService.record(adminId, AuditAction.USER_ROLE_CHANGED, userId, null,
+                saved.getEmail() + " role changed from " + oldRole + " to " + role);
+        return userMapper.toDto(saved);
     }
 
     @Override
     @Transactional
-    public void deleteUser(Long id) {
+    public void deleteUser(Long actorId, Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User with id " + id + " not found"));
+        auditService.record(actorId, AuditAction.USER_DELETED, id, null, user.getEmail() + " account deleted");
         userRepository.delete(user);
     }
 

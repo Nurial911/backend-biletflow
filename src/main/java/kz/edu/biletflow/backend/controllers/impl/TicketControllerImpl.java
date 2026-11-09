@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -36,5 +37,16 @@ public class TicketControllerImpl implements TicketController {
                 .contentType(MediaType.IMAGE_PNG)
                 .cacheControl(CacheControl.noStore())
                 .body(png);
+    }
+
+    @Override
+    public ResponseEntity<byte[]> getTicketPdf(UserPrincipal currentUser, Long ticketId) {
+        boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
+        byte[] pdf = ticketService.getTicketPdf(ticketId, currentUser.getId(), isPlatformAdmin);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"ticket-" + ticketId + ".pdf\"")
+                .body(pdf);
     }
 }
