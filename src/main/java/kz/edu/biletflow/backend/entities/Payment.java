@@ -40,6 +40,14 @@ public class Payment {
     @Column(name = "simulated", nullable = false)
     private boolean simulated = true;
 
+    // SIMULATED or HALYK. Null only on payments recorded before the column existed.
+    @Column(name = "provider", length = 20)
+    private String provider;
+
+    // The bank's id of this attempt, needed to refund it. Null for simulated payments.
+    @Column(name = "provider_transaction_id", length = 64)
+    private String providerTransactionId;
+
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
 

@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -28,6 +29,12 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     Optional<Ticket> findByIdForUpdate(@Param("id") Long id);
 
     long countByEventIdAndStatus(Long eventId, TicketStatus status);
+
+    List<Ticket> findAllByOrderIdAndStatusNotOrderByIdAsc(Long orderId, TicketStatus status);
+
+    // Everyone holding a ticket in this status, for event-wide notifications.
+    @Query("SELECT DISTINCT t.owner.id FROM Ticket t WHERE t.event.id = :eventId AND t.status = :status")
+    List<Long> findOwnerIdsByEvent(@Param("eventId") Long eventId, @Param("status") TicketStatus status);
 
     // q matches part of the attendee email or name, or the exact ticket code; pass "" to list everyone.
     @Query("""

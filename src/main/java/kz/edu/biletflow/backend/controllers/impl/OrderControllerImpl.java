@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.controllers.impl;
 
 import kz.edu.biletflow.backend.controllers.OrderController;
 import kz.edu.biletflow.backend.dtos.CreateOrderRequest;
+import kz.edu.biletflow.backend.dtos.OrderQuoteResponse;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
 import kz.edu.biletflow.backend.dtos.PayOrderRequest;
 import kz.edu.biletflow.backend.dtos.PaymentResponse;
@@ -33,6 +34,12 @@ public class OrderControllerImpl implements OrderController {
                 .buildAndExpand(created.getId())
                 .toUri();
         return ResponseEntity.created(location).body(created);
+    }
+
+    @Override
+    public ResponseEntity<OrderQuoteResponse> quoteOrder(UserPrincipal currentUser, CreateOrderRequest request) {
+        boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
+        return ResponseEntity.ok(orderService.quoteOrder(currentUser.getId(), isPlatformAdmin, request));
     }
 
     @Override

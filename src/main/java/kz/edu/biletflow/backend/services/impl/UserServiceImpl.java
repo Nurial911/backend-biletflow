@@ -12,6 +12,7 @@ import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
 import kz.edu.biletflow.backend.repositories.StaffAssignmentRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
+import kz.edu.biletflow.backend.services.AccountEmailService;
 import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final AccountEmailService accountEmailService;
 
     @Override
     public UserResponse getUserById(Long id) {
@@ -54,13 +56,21 @@ public class UserServiceImpl implements UserService {
             throw new DuplicateResourceException("Email " + request.getEmail() + " is already registered");
         }
 
+        boolean emailChanged = request.getEmail() != null && !request.getEmail().equals(user.getEmail());
+
         userMapper.updateUser(request, user);
 
         if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
+        if (emailChanged) {
+            user.setVerificationStatus(false); // the new address hasn't been confirmed
+        }
 
         User savedUser = userRepository.save(user);
+        if (emailChanged) {
+            accountEmailService.sendVerification(savedUser);
+        }
         return userMapper.toDto(savedUser);
     }
 

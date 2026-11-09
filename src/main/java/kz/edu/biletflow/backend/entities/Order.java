@@ -28,9 +28,18 @@ public class Order {
     @Column(name = "status", nullable = false)
     private OrderStatus status = OrderStatus.PENDING;
 
-    // KZT. 0 for a free order.
+    // KZT, after any discount. 0 for a free order.
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
+
+    // KZT taken off by the promo code. Default in the column definition so ddl-auto=update can add it.
+    @Column(name = "discount_amount", nullable = false, columnDefinition = "numeric(12,2) not null default 0")
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    // The campaign this order redeemed, if any. PAID or still-held orders count against its limit.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "promo_campaign_id", foreignKey = @ForeignKey(name = "fk_orders_promo_campaign"))
+    private PromoCampaign promoCampaign;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

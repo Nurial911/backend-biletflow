@@ -1,7 +1,10 @@
 package kz.edu.biletflow.backend.mappers;
 
 import kz.edu.biletflow.backend.dtos.OrganizerProfileResponse;
+import kz.edu.biletflow.backend.dtos.OrganizerVerificationRequestResponse;
+import kz.edu.biletflow.backend.dtos.PayoutAccountResponse;
 import kz.edu.biletflow.backend.entities.OrganizerProfile;
+import kz.edu.biletflow.backend.entities.PayoutAccount;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -9,4 +12,10 @@ import org.mapstruct.Mapping;
 public interface OrganizerProfileMapper {
     @Mapping(target = "userId", source = "user.id")
     OrganizerProfileResponse toDto(OrganizerProfile organizerProfile);
+
+    @Mapping(target = "userId", source = "user.id")
+    @Mapping(target = "email", source = "user.email")
+    OrganizerVerificationRequestResponse toVerificationRequest(OrganizerProfile organizerProfile);
+
+    PayoutAccountResponse toDto(PayoutAccount payoutAccount);
 }

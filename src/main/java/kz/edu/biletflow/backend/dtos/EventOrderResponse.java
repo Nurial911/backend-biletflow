@@ -16,7 +16,9 @@ public class EventOrderResponse {
     private Long buyerId;
     private String buyerEmail;
     private String attendeeName;
+    private BigDecimal discountAmount;
     private BigDecimal totalAmount;
+    private String promoCode; // null without a promo code
     private int ticketCount;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;

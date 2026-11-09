@@ -42,6 +42,11 @@ public class CheckInServiceImpl implements CheckInService {
     public CheckInResponse scan(Long eventId, String code, Long staffId, boolean isPlatformAdmin) {
         Event event = getCheckInEvent(eventId, staffId, isPlatformAdmin);
 
+        // A Campaign QR code is a link, so the lookup below would reject it anyway. This tells staff why (SRS 4.14).
+        if (code.contains("promo=")) {
+            return new CheckInResponse(CheckInResult.INVALID, "This is a promotional QR code, not a ticket", null, null);
+        }
+
         // Locked so two scanners reading the same ticket at once can't both admit it.
         Optional<Ticket> found = ticketRepository.findByCodeForUpdate(code.trim());
         if (found.isEmpty()) {

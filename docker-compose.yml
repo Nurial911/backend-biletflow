@@ -42,12 +42,42 @@ services:
       # Behind Caddy: trust X-Forwarded-* so Location headers / Swagger use https and the real host.
       SERVER_FORWARD_HEADERS_STRATEGY: framework
       UPLOADS_DIR: /app/uploads
+      # Base of the links in emails and campaign QR codes. Must be the https address on a server.
+      APP_FRONTEND_URL: ${APP_FRONTEND_URL:-http://localhost:5173}
+      ACTIVATION_FEE_KZT: ${ACTIVATION_FEE_KZT:-5000}
+      # simulated = no bank. halyk = Halyk ePay; the defaults below are its test environment.
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-simulated}
+      HALYK_CLIENT_ID: ${HALYK_CLIENT_ID:-}
+      HALYK_CLIENT_SECRET: ${HALYK_CLIENT_SECRET:-}
+      HALYK_TERMINAL_ID: ${HALYK_TERMINAL_ID:-}
+      HALYK_CALLBACK_BASE_URL: ${HALYK_CALLBACK_BASE_URL:-}
+      HALYK_TEST_MODE: ${HALYK_TEST_MODE:-true}
+      HALYK_OAUTH_URL: ${HALYK_OAUTH_URL:-https://test-epay-oauth.epayment.kz/oauth2/token}
+      HALYK_API_URL: ${HALYK_API_URL:-https://test-epay-api.epayment.kz}
+      HALYK_SCRIPT_URL: ${HALYK_SCRIPT_URL:-https://test-epay.epayment.kz/payform/payment-api.js}
+      # Off by default. For a local demo: COMPOSE_PROFILES=mail, MAIL_ENABLED=true, MAIL_HOST=mailpit
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@biletflow.kz}
     volumes:
       - uploads:/app/uploads   # event posters, kept across rebuilds
     ports:
       # This machine only, so a server is reached through Caddy (HTTPS), never plain HTTP.
       # Set BACKEND_BIND=0.0.0.0 in .env to test from a phone on the local network.
       - "${BACKEND_BIND:-127.0.0.1}:8080:8080"
+
+  # Catches every email instead of delivering it: read them at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.27
+    profiles: ["mail"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
 
   # HTTPS reverse proxy for a server with a domain. Gets certificates automatically.
   # Off by default (so local dev doesn't grab ports 80/443). On the server set in .env:

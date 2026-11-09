@@ -30,8 +30,12 @@ public class EventSalesResponse {
 
     private long ticketsSold;
     private long ticketsReserved;
+    // Gross: list prices of the tickets sold, before any promo discount. The same goes for
+    // ticketTypes[].revenue and salesByDay[].revenue.
     private BigDecimal revenue;
-    // Simulated figures: fees of successful payments, and revenue minus those fees.
+    private BigDecimal discounts;
+    private BigDecimal netRevenue;
+    // Simulated figures: fees of successful payments, and net revenue minus those fees.
     private BigDecimal processingFees;
     private BigDecimal estimatedPayout;
 

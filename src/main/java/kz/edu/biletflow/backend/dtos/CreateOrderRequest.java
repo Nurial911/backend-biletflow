@@ -19,4 +19,8 @@ public class CreateOrderRequest {
     // Name for the tickets. Optional: defaults to the buyer's full name, then their email.
     @Size(max = 200, message = "Attendee name must be at most 200 characters long")
     private String attendeeName;
+
+    // Optional. The server looks up and calculates the discount; a rejected code fails the whole order.
+    @Size(max = 20, message = "Promo code must be at most 20 characters long")
+    private String promoCode;
 }

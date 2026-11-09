@@ -20,6 +20,8 @@ public class EventResponse {
     private VisibilityStatus visibilityStatus;
     private EventStatus status;
     private String posterUrl; // null when the event has no poster
+    // False: paid ticket types are shown but can't be bought yet. Free ones are unaffected.
+    private boolean paidSalesActive;
 
     // Only owner/admin can see a suspended event, so these never reach the public.
     private boolean suspended;

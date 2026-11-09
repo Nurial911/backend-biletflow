@@ -1,38 +1,17 @@
 package kz.edu.biletflow.backend;
 
-import com.google.zxing.BinaryBitmap;
-import com.google.zxing.DecodeHintType;
-import com.google.zxing.MultiFormatReader;
-import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
-import com.google.zxing.common.HybridBinarizer;
 import kz.edu.biletflow.backend.services.OrderService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.client.EntityExchangeResult;
-import org.springframework.test.web.servlet.client.RestTestClient;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
-import javax.imageio.ImageIO;
-import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,25 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The ticketing path of the demo, driven over real HTTP: order, payment, ticket, QR image, scan.
  * Every test creates its own users and event, so tests don't depend on each other.
  */
-class CoreFlowIntegrationTest extends IntegrationTestBase {
-
-    private static final JsonMapper JSON = JsonMapper.builder().build();
-
-    @LocalServerPort
-    private int port;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+class CoreFlowIntegrationTest extends ApiIntegrationTest {
 
     @Autowired
     private OrderService orderService;
-
-    private RestTestClient client;
-
-    @BeforeEach
-    void setUp() {
-        client = RestTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
-    }
 
     // orders //
 
@@ -432,128 +396,4 @@ class CoreFlowIntegrationTest extends IntegrationTestBase {
         call(HttpMethod.POST, path, organizer(), body).assertStatus(404);
     }
 
-    // helpers //
-
-    private String register() {
-        Map<String, String> body = Map.of("email", "user-" + UUID.randomUUID() + "@test.kz", "password", "Password123!");
-        return call(HttpMethod.POST, "/api/auth/register", null, body).assertStatus(201).json().get("accessToken").asString();
-    }
-
-    private String organizer() {
-        return call(HttpMethod.POST, "/api/organizers/profile", register(), Map.of("contactInformation", "+7 700 000 00 00"))
-                .assertStatus(201).json().get("accessToken").asString();
-    }
-
-    private long publishedEvent(String organizer) {
-        long venue = call(HttpMethod.POST, "/api/venues", organizer,
-                Map.of("name", "Test Hall", "address", "Test street 1, Astana", "capacity", 500))
-                .assertStatus(201).json().get("id").asLong();
-        long event = call(HttpMethod.POST, "/api/events", organizer, Map.of(
-                "title", "Test event",
-                "category", "Test",
-                "startTime", LocalDateTime.now().plusDays(30).toString(),
-                "visibilityStatus", "PUBLIC",
-                "venueId", venue))
-                .assertStatus(201).json().get("id").asLong();
-        call(HttpMethod.POST, "/api/events/" + event + "/publish", organizer, null).assertStatus(200);
-        return event;
-    }
-
-    private long ticketType(String organizer, long event, int price, int quantity) {
-        return call(HttpMethod.POST, "/api/events/" + event + "/ticket-types", organizer,
-                Map.of("name", "Standard", "price", price, "quantity", quantity, "maxPerOrder", 10))
-                .assertStatus(201).json().get("id").asLong();
-    }
-
-    private Map<String, Object> orderBody(long event, long type, int quantity) {
-        return Map.of("eventId", event, "items", List.of(Map.of("ticketTypeId", type, "quantity", quantity)));
-    }
-
-    private JsonNode createOrder(String buyer, long event, long type, int quantity) {
-        return call(HttpMethod.POST, "/api/orders", buyer, orderBody(event, type, quantity)).assertStatus(201).json();
-    }
-
-    private Response pay(String buyer, long orderId) {
-        return call(HttpMethod.POST, "/api/orders/" + orderId + "/pay", buyer, null);
-    }
-
-    private List<JsonNode> tickets(String owner) {
-        List<JsonNode> tickets = new ArrayList<>();
-        call(HttpMethod.GET, "/api/tickets?size=100", owner, null).assertStatus(200).json().get("content").forEach(tickets::add);
-        return tickets;
-    }
-
-    private List<JsonNode> payments(String buyer, long orderId) {
-        List<JsonNode> payments = new ArrayList<>();
-        call(HttpMethod.GET, "/api/orders/" + orderId + "/payments", buyer, null).assertStatus(200).json().forEach(payments::add);
-        return payments;
-    }
-
-    private List<String> auditActions(long event) {
-        return jdbcTemplate.queryForList("SELECT action FROM audit_log WHERE event_id = ? ORDER BY id", String.class, event);
-    }
-
-    private JsonNode scan(String staff, long event, String code) {
-        return call(HttpMethod.POST, "/api/check-in/events/" + event + "/scan", staff, Map.of("code", code))
-                .assertStatus(200).json();
-    }
-
-    private Response call(HttpMethod method, String path, String token, Object body) {
-        RestTestClient.RequestBodySpec request = client.method(method).uri(path);
-        if (token != null) {
-            request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-        }
-        if (body != null) {
-            request.contentType(MediaType.APPLICATION_JSON).body(body);
-        }
-        EntityExchangeResult<byte[]> result = request.exchange().expectBody().returnResult();
-        return new Response(method + " " + path, result.getStatus().value(),
-                result.getResponseHeaders().getContentType(), result.getResponseBody());
-    }
-
-    private String decodeQr(byte[] png) throws Exception {
-        var image = ImageIO.read(new ByteArrayInputStream(png));
-        var bitmap = new BinaryBitmap(new HybridBinarizer(new BufferedImageLuminanceSource(image)));
-        // PURE_BARCODE because this is a clean rendered image: ZXing's camera-oriented detector
-        // misses about 2% of perfectly valid codes when given one.
-        return new MultiFormatReader().decode(bitmap, Map.of(DecodeHintType.PURE_BARCODE, true)).getText();
-    }
-
-    // Runs the task on n threads released at the same moment, and returns every result.
-    private <T> List<T> concurrently(int n, Callable<T> task) throws Exception {
-        ExecutorService pool = Executors.newFixedThreadPool(n);
-        try {
-            CountDownLatch start = new CountDownLatch(1);
-            List<Future<T>> futures = new ArrayList<>();
-            for (int i = 0; i < n; i++) {
-                futures.add(pool.submit(() -> {
-                    start.await();
-                    return task.call();
-                }));
-            }
-            start.countDown();
-            List<T> results = new ArrayList<>();
-            for (Future<T> future : futures) {
-                results.add(future.get(60, TimeUnit.SECONDS));
-            }
-            return results;
-        } finally {
-            pool.shutdownNow();
-        }
-    }
-
-    private record Response(String request, int status, MediaType contentType, byte[] body) {
-        Response assertStatus(int expected) {
-            assertThat(status).as("%s responded with: %s", request, text()).isEqualTo(expected);
-            return this;
-        }
-
-        JsonNode json() {
-            return JSON.readTree(body);
-        }
-
-        private String text() {
-            return body == null ? "" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
-        }
-    }
 }

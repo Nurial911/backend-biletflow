@@ -67,6 +67,10 @@ public class Event {
     @Column(name = "suspension_reason", length = 500)
     private String suspensionReason;
 
+    // True while paid tickets may be sold; only PaidSalesActivationServiceImpl changes it. Free tickets ignore it.
+    @Column(name = "paid_sales_active", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean paidSalesActive = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organizer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_events_organizer"))
     private User organizer;

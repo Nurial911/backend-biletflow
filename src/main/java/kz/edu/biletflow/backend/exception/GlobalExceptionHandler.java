@@ -106,6 +106,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.PAYMENT_REQUIRED);
     }
 
+    // when the bank can't be reached or refuses a request; nothing about the order has changed
+    @ExceptionHandler(PaymentProviderException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentProvider(PaymentProviderException ex) {
+        log.warn("Payment provider problem: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_GATEWAY.value(),
+                "The payment service is temporarily unavailable, please try again",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.BAD_GATEWAY);
+    }
+
     // A path variable or query parameter of the wrong type, e.g. ?status=FOO or /events/abc.
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {

@@ -38,6 +38,7 @@ public interface EventMapper {
     @Mapping(target = "suspended", ignore = true) // moderation goes through /suspend and /unsuspend
     @Mapping(target = "suspendedAt", ignore = true)
     @Mapping(target = "suspensionReason", ignore = true)
+    @Mapping(target = "paidSalesActive", ignore = true) // changes only through paid-sales activation
     Event toEntity(CreateEventRequest request);
 
 
@@ -52,6 +53,7 @@ public interface EventMapper {
     @Mapping(target = "suspended", ignore = true) // moderation goes through /suspend and /unsuspend
     @Mapping(target = "suspendedAt", ignore = true)
     @Mapping(target = "suspensionReason", ignore = true)
+    @Mapping(target = "paidSalesActive", ignore = true) // changes only through paid-sales activation
     void updateEvent(UpdateEventRequest request, @MappingTarget Event event);
 
 }

@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.services.impl;
 
 import kz.edu.biletflow.backend.dtos.CreateOrderRequest;
 import kz.edu.biletflow.backend.dtos.OrderItemRequest;
+import kz.edu.biletflow.backend.dtos.OrderQuoteResponse;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
 import kz.edu.biletflow.backend.dtos.PaymentResponse;
 import kz.edu.biletflow.backend.entities.*;
@@ -11,7 +12,9 @@ import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.*;
 import kz.edu.biletflow.backend.services.AuditService;
+import kz.edu.biletflow.backend.services.NotificationService;
 import kz.edu.biletflow.backend.services.OrderService;
+import kz.edu.biletflow.backend.services.PromoCampaignService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -20,8 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -37,18 +40,19 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentRepository paymentRepository;
     private final AuditService auditService;
     private final OrderItemRepository orderItemRepository;
-    private final TicketRepository ticketRepository;
     private final TicketTypeRepository ticketTypeRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
     private final OrderMapper orderMapper;
+    private final PromoCampaignService promoCampaignService;
+    private final NotificationService notificationService;
+    private final OrderFulfillment fulfillment;
 
     @Value("${app.orders.hold-minutes:15}")
     private int holdMinutes;
 
-    // Placeholder rate: the SRS leaves the real one undecided. Deducted from the organizer's payout (SRS 3.3).
-    @Value("${app.payments.processing-fee-percent:2.5}")
-    private BigDecimal processingFeePercent;
+    @Value("${app.payments.provider:simulated}")
+    private String paymentProvider;
 
     @Override
     @Transactional
@@ -56,13 +60,7 @@ public class OrderServiceImpl implements OrderService {
         Event event = getPurchasableEvent(request.getEventId(), userId, isPlatformAdmin);
         LocalDateTime now = LocalDateTime.now();
         validateRegistrationWindow(event, now);
-
-        Set<Long> seen = new HashSet<>();
-        for (OrderItemRequest item : request.getItems()) {
-            if (!seen.add(item.getTicketTypeId())) {
-                throw new BusinessRuleViolationException("Ticket type " + item.getTicketTypeId() + " is listed more than once");
-            }
-        }
+        rejectRepeatedTicketTypes(request);
 
         User buyer = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
@@ -72,6 +70,11 @@ public class OrderServiceImpl implements OrderService {
         order.setAttendeeName(resolveAttendeeName(request.getAttendeeName(), buyer));
         order.setEvent(event);
         order.setExpiresAt(now.plusMinutes(holdMinutes));
+
+        // Locked before the ticket types, in the same order on every request, so orders can't deadlock.
+        PromoCampaign campaign = hasPromoCode(request)
+                ? promoCampaignService.getRedeemableForUpdate(event.getId(), request.getPromoCode(), now)
+                : null;
 
         // Lock ticket types in id order so two concurrent orders can't deadlock each other.
         List<OrderItemRequest> sortedItems = request.getItems().stream()
@@ -93,24 +96,71 @@ public class OrderServiceImpl implements OrderService {
 
             total = total.add(ticketType.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity())));
         }
+        if (campaign != null) {
+            BigDecimal discount = promoCampaignService.calculateDiscount(campaign, order.getItems());
+            order.setPromoCampaign(campaign);
+            order.setDiscountAmount(discount);
+            total = total.subtract(discount);
+        }
         order.setTotalAmount(total);
 
         // Nothing to pay for a free order: confirm it right away.
         boolean free = total.signum() == 0;
         if (free) {
-            markPaid(order, now);
+            fulfillment.markPaid(order, now);
         }
 
         Order saved = orderRepository.save(order);
         if (free) {
-            issueTickets(saved); // after save: tickets reference the persisted order
+            fulfillment.issueTickets(saved, false); // after save: tickets reference the persisted order
         }
         return orderMapper.toDto(saved);
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public OrderQuoteResponse quoteOrder(Long userId, boolean isPlatformAdmin, CreateOrderRequest request) {
+        Event event = getPurchasableEvent(request.getEventId(), userId, isPlatformAdmin);
+        LocalDateTime now = LocalDateTime.now();
+        validateRegistrationWindow(event, now);
+        rejectRepeatedTicketTypes(request);
+
+        List<OrderItem> items = new ArrayList<>();
+        BigDecimal subtotal = BigDecimal.ZERO;
+        for (OrderItemRequest itemRequest : request.getItems()) {
+            TicketType ticketType = ticketTypeRepository.findById(itemRequest.getTicketTypeId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Ticket type not found with id: " + itemRequest.getTicketTypeId()));
+            validateTicketTypeForPurchase(ticketType, event, itemRequest.getQuantity(), now);
+
+            OrderItem item = new OrderItem();
+            item.setTicketType(ticketType);
+            item.setQuantity(itemRequest.getQuantity());
+            item.setUnitPrice(ticketType.getPrice());
+            items.add(item);
+            subtotal = subtotal.add(ticketType.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity())));
+        }
+
+        OrderQuoteResponse quote = new OrderQuoteResponse();
+        BigDecimal discount = BigDecimal.ZERO;
+        if (hasPromoCode(request)) {
+            PromoCampaign campaign = promoCampaignService.getRedeemable(event.getId(), request.getPromoCode(), now);
+            discount = promoCampaignService.calculateDiscount(campaign, items);
+            quote.setPromoCode(campaign.getCode());
+        }
+        quote.setSubtotalAmount(subtotal);
+        quote.setDiscountAmount(discount);
+        quote.setTotalAmount(subtotal.subtract(discount));
+        return quote;
+    }
+
+    @Override
     @Transactional(noRollbackFor = PaymentDeclinedException.class) // the FAILED payment must be kept
     public OrderResponse payOrder(Long userId, Long orderId, SimulatedPaymentOutcome outcome) {
+        // With a real bank this endpoint would let buyers mark their own orders as paid.
+        if (!"simulated".equalsIgnoreCase(paymentProvider)) {
+            throw new BusinessRuleViolationException("Payments go through the bank here: start a payment session instead");
+        }
         Order order = getOwnedOrderForUpdate(userId, orderId);
         LocalDateTime now = LocalDateTime.now();
 
@@ -125,21 +175,30 @@ public class OrderServiceImpl implements OrderService {
         if (order.getEvent().getStatus() != EventStatus.PUBLISHED || order.getEvent().isSuspended()) {
             throw new BusinessRuleViolationException("The event is no longer available");
         }
+        if (!order.getEvent().isPaidSalesActive()) {
+            throw new BusinessRuleViolationException("Paid sales for this event are suspended");
+        }
 
         // Simulation only (SRS 3.2): no provider is called and no money moves. A real or sandbox
         // provider would be called here, and its answer would replace the requested outcome.
         Long eventId = order.getEvent().getId();
         if (outcome == SimulatedPaymentOutcome.DECLINED) {
-            Payment failed = savePayment(order, PaymentStatus.FAILED, BigDecimal.ZERO, DECLINED_REASON);
+            Payment failed = fulfillment.savePayment(order, simulatedPayment(PaymentStatus.FAILED, BigDecimal.ZERO, DECLINED_REASON));
             auditService.record(userId, AuditAction.PAYMENT_FAILED, failed.getId(), eventId,
                     "Simulated payment of " + order.getTotalAmount() + " KZT declined for order #" + order.getId());
+            notificationService.notifyUser(userId, NotificationType.PAYMENT_FAILED,
+                    "Payment failed for " + order.getEvent().getTitle(),
+                    "The payment for order #" + order.getId() + " was declined, so no tickets were issued."
+                            + " You can try again until the reservation expires."
+                            + "\n\nThis is a demonstration payment: no real money is involved.", null);
             throw new PaymentDeclinedException(DECLINED_REASON + ", no tickets were issued. You can try again until the hold expires.");
         }
 
-        markPaid(order, now);
+        fulfillment.markPaid(order, now);
         Order saved = orderRepository.save(order);
-        Payment payment = savePayment(saved, PaymentStatus.SUCCEEDED, processingFee(saved.getTotalAmount()), null);
-        issueTickets(saved);
+        Payment payment = fulfillment.savePayment(saved,
+                simulatedPayment(PaymentStatus.SUCCEEDED, fulfillment.processingFee(saved.getTotalAmount()), null));
+        fulfillment.issueTickets(saved, true);
         auditService.record(userId, AuditAction.PAYMENT_SUCCEEDED, payment.getId(), eventId,
                 "Simulated payment of " + saved.getTotalAmount() + " KZT for order #" + saved.getId());
         return orderMapper.toDto(saved);
@@ -185,24 +244,8 @@ public class OrderServiceImpl implements OrderService {
 
     // helpers //
 
-    private void markPaid(Order order, LocalDateTime now) {
-        order.setStatus(OrderStatus.PAID);
-        order.setPaidAt(now);
-    }
-
-    private Payment savePayment(Order order, PaymentStatus status, BigDecimal fee, String failureReason) {
-        Payment payment = new Payment();
-        payment.setReference("SIM-" + UUID.randomUUID());
-        payment.setOrder(order);
-        payment.setStatus(status);
-        payment.setAmount(order.getTotalAmount());
-        payment.setProcessingFee(fee);
-        payment.setFailureReason(failureReason);
-        return paymentRepository.save(payment);
-    }
-
-    private BigDecimal processingFee(BigDecimal amount) {
-        return amount.multiply(processingFeePercent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    private OrderFulfillment.PaymentDetails simulatedPayment(PaymentStatus status, BigDecimal fee, String failureReason) {
+        return new OrderFulfillment.PaymentDetails("SIM-" + UUID.randomUUID(), status, fee, failureReason, "SIMULATED", null, true);
     }
 
     private String resolveAttendeeName(String requested, User buyer) {
@@ -215,19 +258,17 @@ public class OrderServiceImpl implements OrderService {
         return buyer.getEmail();
     }
 
-    private void issueTickets(Order order) {
-        for (OrderItem item : order.getItems()) {
-            for (int i = 0; i < item.getQuantity(); i++) {
-                Ticket ticket = new Ticket();
-                ticket.setCode(UUID.randomUUID().toString());
-                ticket.setAttendeeName(order.getAttendeeName());
-                ticket.setOrder(order);
-                ticket.setEvent(order.getEvent());
-                ticket.setTicketType(item.getTicketType());
-                ticket.setOwner(order.getUser());
-                ticketRepository.save(ticket);
+    private void rejectRepeatedTicketTypes(CreateOrderRequest request) {
+        Set<Long> seen = new HashSet<>();
+        for (OrderItemRequest item : request.getItems()) {
+            if (!seen.add(item.getTicketTypeId())) {
+                throw new BusinessRuleViolationException("Ticket type " + item.getTicketTypeId() + " is listed more than once");
             }
         }
+    }
+
+    private boolean hasPromoCode(CreateOrderRequest request) {
+        return request.getPromoCode() != null && !request.getPromoCode().isBlank();
     }
 
     private Event getPurchasableEvent(Long eventId, Long userId, boolean isPlatformAdmin) {
@@ -268,6 +309,9 @@ public class OrderServiceImpl implements OrderService {
         }
         if (ticketType.isHidden()) {
             throw new ResourceNotFoundException("Ticket type not found with id: " + ticketType.getId());
+        }
+        if (ticketType.getPrice().signum() > 0 && !event.isPaidSalesActive()) {
+            throw new BusinessRuleViolationException("Paid tickets for this event are not on sale yet");
         }
         if (ticketType.getSalesStart() != null && now.isBefore(ticketType.getSalesStart())) {
             throw new BusinessRuleViolationException("Sales of '" + ticketType.getName() + "' have not started yet");

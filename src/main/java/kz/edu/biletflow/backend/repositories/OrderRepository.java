@@ -51,6 +51,41 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @Query("SELECT o.id, o.user.id, u.email FROM Order o LEFT JOIN o.user u WHERE o.id IN :orderIds")
     List<Object[]> findBuyers(@Param("orderIds") Collection<Long> orderIds);
 
+    // Redemptions using up a campaign's limit: paid orders plus unpaid ones still holding theirs.
+    @Query("""
+        SELECT COUNT(o) FROM Order o
+        WHERE o.promoCampaign.id = :campaignId
+          AND (o.status = :paid OR (o.status = :pending AND o.expiresAt > :now))
+        """)
+    long countActiveRedemptions(@Param("campaignId") Long campaignId,
+                                @Param("paid") OrderStatus paid,
+                                @Param("pending") OrderStatus pending,
+                                @Param("now") LocalDateTime now);
+
+    // Per campaign: [campaignId, paid orders, discount given on them, unpaid orders still holding a redemption].
+    @Query("""
+        SELECT o.promoCampaign.id,
+               SUM(CASE WHEN o.status = :paid THEN 1 ELSE 0 END),
+               SUM(CASE WHEN o.status = :paid THEN o.discountAmount ELSE 0 END),
+               SUM(CASE WHEN o.status = :pending AND o.expiresAt > :now THEN 1 ELSE 0 END)
+        FROM Order o
+        WHERE o.promoCampaign.id IN :campaignIds
+        GROUP BY o.promoCampaign.id
+        """)
+    List<Object[]> aggregateByCampaign(@Param("campaignIds") Collection<Long> campaignIds,
+                                       @Param("paid") OrderStatus paid,
+                                       @Param("pending") OrderStatus pending,
+                                       @Param("now") LocalDateTime now);
+
+    // [eventId, sum of discounts on PAID orders]
+    @Query("""
+        SELECT o.event.id, SUM(o.discountAmount)
+        FROM Order o
+        WHERE o.event.id IN :eventIds AND o.status = :paid
+        GROUP BY o.event.id
+        """)
+    List<Object[]> sumDiscountsByEvent(@Param("eventIds") Collection<Long> eventIds, @Param("paid") OrderStatus paid);
+
     // Releases the inventory of unpaid orders (queries that count "sold" ignore EXPIRED).
     @Modifying
     @Query("UPDATE Order o SET o.status = :expired WHERE o.status = :pending AND o.expiresAt <= :now")

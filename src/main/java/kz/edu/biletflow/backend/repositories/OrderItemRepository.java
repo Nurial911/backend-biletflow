@@ -40,6 +40,16 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                                               @Param("pending") OrderStatus pending,
                                               @Param("now") LocalDateTime now);
 
+    // Per campaign, PAID orders only: [campaignId, tickets, gross revenue before discount].
+    @Query("""
+        SELECT o.promoCampaign.id, SUM(i.quantity), SUM(i.unitPrice * i.quantity)
+        FROM OrderItem i JOIN i.order o
+        WHERE o.promoCampaign.id IN :campaignIds AND o.status = :paid
+        GROUP BY o.promoCampaign.id
+        """)
+    List<Object[]> aggregatePaidByCampaign(@Param("campaignIds") Collection<Long> campaignIds,
+                                           @Param("paid") OrderStatus paid);
+
     // PAID sales of one event by payment date: [date, paidOrders, ticketsSold, revenue].
     @Query("""
         SELECT cast(o.paidAt as LocalDate),

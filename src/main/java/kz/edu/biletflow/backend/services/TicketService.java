@@ -11,4 +11,7 @@ public interface TicketService {
 
     // PNG image of the ticket's QR code.
     byte[] getTicketQr(Long ticketId, Long requesterId, boolean isPlatformAdmin);
+
+    // Print-optimized A4 PDF of the ticket.
+    byte[] getTicketPdf(Long ticketId, Long requesterId, boolean isPlatformAdmin);
 }

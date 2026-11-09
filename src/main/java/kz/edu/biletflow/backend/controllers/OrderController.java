@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.controllers;
 
 import jakarta.validation.Valid;
 import kz.edu.biletflow.backend.dtos.CreateOrderRequest;
+import kz.edu.biletflow.backend.dtos.OrderQuoteResponse;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
 import kz.edu.biletflow.backend.dtos.PayOrderRequest;
 import kz.edu.biletflow.backend.dtos.PaymentResponse;
@@ -20,6 +21,11 @@ public interface OrderController {
     @PostMapping
     ResponseEntity<OrderResponse> createOrder(@AuthenticationPrincipal UserPrincipal currentUser,
                                               @Valid @RequestBody CreateOrderRequest request);
+
+    // Same body as creating the order: shows the discount and total before checkout, reserves nothing.
+    @PostMapping("/quote")
+    ResponseEntity<OrderQuoteResponse> quoteOrder(@AuthenticationPrincipal UserPrincipal currentUser,
+                                                  @Valid @RequestBody CreateOrderRequest request);
 
     @GetMapping
     ResponseEntity<Page<OrderResponse>> getMyOrders(@AuthenticationPrincipal UserPrincipal currentUser,

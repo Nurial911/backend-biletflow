@@ -17,6 +17,7 @@ import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.repositories.VenueRepository;
 import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.EventService;
+import kz.edu.biletflow.backend.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,12 +30,14 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class EventServiceImpl implements EventService {
     private static final Long ANONYMOUS_ID = -1L;
+    private static final DateTimeFormatter NOTIFICATION_DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
 
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
@@ -44,6 +47,7 @@ public class EventServiceImpl implements EventService {
     private final OrderRepository orderRepository;
     private final PosterStorage posterStorage;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     @Transactional
     @Override
@@ -109,6 +113,9 @@ public class EventServiceImpl implements EventService {
             throw new BusinessRuleViolationException("A cancelled event cannot be edited.");
         }
         Integer oldCapacity = event.getCapacity();
+        LocalDateTime oldStart = event.getStartTime();
+        LocalDateTime oldEnd = event.getEndTime();
+        Long oldVenueId = event.getVenue().getId();
         eventMapper.updateEvent(request, event);
 
         if (request.getVenueId() != null){
@@ -128,6 +135,15 @@ public class EventServiceImpl implements EventService {
         String capacityChange = Objects.equals(oldCapacity, saved.getCapacity())
                 ? "" : ", capacity " + oldCapacity + " -> " + saved.getCapacity();
         audit(organizerId, AuditAction.EVENT_UPDATED, saved, "Event details updated" + capacityChange);
+        if (!Objects.equals(oldStart, saved.getStartTime()) || !Objects.equals(oldEnd, saved.getEndTime())
+                || !Objects.equals(oldVenueId, saved.getVenue().getId())) {
+            notificationService.notifyUsers(ticketRepository.findOwnerIdsByEvent(eventId, TicketStatus.VALID),
+                    NotificationType.EVENT_UPDATED, "Details changed for " + saved.getTitle(),
+                    "The time or place of \"" + saved.getTitle() + "\" has changed. It now takes place on "
+                            + saved.getStartTime().format(NOTIFICATION_DATE_TIME) + " (Almaty time) at "
+                            + saved.getVenue().getName() + ", " + saved.getVenue().getAddress()
+                            + ". Your ticket stays valid.");
+        }
         return eventMapper.toDto(saved);
     }
 
@@ -177,6 +193,12 @@ public class EventServiceImpl implements EventService {
 
         event.setStatus(EventStatus.CANCELLED);
         Event saved = eventRepository.save(event);
+
+        // Before the update below: afterwards nobody holds a VALID ticket any more.
+        notificationService.notifyUsers(ticketRepository.findOwnerIdsByEvent(eventId, TicketStatus.VALID),
+                NotificationType.EVENT_CANCELLED, saved.getTitle() + " has been cancelled",
+                "The organizer cancelled \"" + saved.getTitle() + "\", so your ticket is no longer valid."
+                        + " You can contact the organizer by opening a support case from your order.");
 
         // Cancelled tickets must not admit anyone; unpaid orders can no longer be paid.
         // PAID orders keep their status until refunds exist (they need a refund, not a silent change).

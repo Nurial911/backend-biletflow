@@ -37,6 +37,9 @@ public class DataSeeder implements ApplicationRunner {
     private final OrderRepository orderRepository;
     private final TicketRepository ticketRepository;
     private final StaffAssignmentRepository staffAssignmentRepository;
+    private final PayoutAccountRepository payoutAccountRepository;
+    private final PaidSalesActivationRepository paidSalesActivationRepository;
+    private final PromoCampaignRepository promoCampaignRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -54,8 +57,9 @@ public class DataSeeder implements ApplicationRunner {
         User scanner = createUser("scanner@biletflow.kz", User.Role.EVENT_ADMIN);
         User org1 = createUser("organizer1@biletflow.kz", User.Role.ORGANIZER);
         User org2 = createUser("organizer2@biletflow.kz", User.Role.ORGANIZER);
-        createProfile(org1, "Astana Student Events Club, +7 700 000 00 01");
-        createProfile(org2, "Nur-Sultan Music Productions, +7 700 000 00 02");
+        // Organizer 1 can activate an event straight away; organizer 2 still has the whole checklist to do.
+        createProfile(org1, "Astana Student Events Club, +7 700 000 00 01", true);
+        createProfile(org2, "Nur-Sultan Music Productions, +7 700 000 00 02", false);
 
         // ---------- venues ----------
         Venue hall = venue("Demo Concert Hall", "Demo street 1, Astana", 400);
@@ -84,6 +88,8 @@ public class DataSeeder implements ApplicationRunner {
                 now.minusDays(10), now.minusDays(2), 4);
         earlyBird.setHidden(true);      // hidden ticket type, to test the "hidden" feature
         ticketTypeRepository.save(earlyBird);
+        activatePaidSales(concert);
+        promoCampaign(concert, "Spring newsletter", "JAZZ2026", PromoDiscountType.PERCENT, "20", 50);
 
         Event draft = event(org1, hall, "Draft: Autumn Hackathon",
                 "Still being planned, not public yet.", "Technology",
@@ -132,14 +138,50 @@ public class DataSeeder implements ApplicationRunner {
         u.setEmail(email);
         u.setPasswordHash(passwordEncoder.encode(DEMO_PASSWORD));
         u.setRole(role);
+        u.setVerificationStatus(true); // demo addresses can't receive a confirmation email
         return userRepository.save(u);
     }
 
-    private void createProfile(User user, String contact) {
+    private void createProfile(User user, String contact, boolean readyForPaidSales) {
         OrganizerProfile p = new OrganizerProfile();
         p.setUser(user);
         p.setContactInformation(contact);
+        if (readyForPaidSales) {
+            PayoutAccount account = new PayoutAccount();
+            account.setBankName("Demo Bank");
+            account.setAccountHolder(contact);
+            account.setIbanLast4("0001");
+            p.setPayoutAccountId(payoutAccountRepository.save(account).getId());
+            p.setVerificationStatus(OrganizerVerificationStatus.VERIFIED);
+        }
         organizerProfileRepository.save(p);
+    }
+
+    private void activatePaidSales(Event event) {
+        LocalDateTime now = LocalDateTime.now();
+        PaidSalesActivation activation = new PaidSalesActivation();
+        activation.setEvent(event);
+        activation.setStatus(PaidSalesStatus.ACTIVE);
+        activation.setFeeAmount(new BigDecimal("5000"));
+        activation.setFeeReference("SIM-" + UUID.randomUUID());
+        activation.setFeePaidAt(now);
+        activation.setTermsAcceptedAt(now);
+        activation.setActivatedAt(now);
+        paidSalesActivationRepository.save(activation);
+        event.setPaidSalesActive(true);
+        eventRepository.save(event);
+    }
+
+    private void promoCampaign(Event event, String name, String code, PromoDiscountType type, String value, int maxRedemptions) {
+        PromoCampaign campaign = new PromoCampaign();
+        campaign.setEvent(event);
+        campaign.setName(name);
+        campaign.setCode(code);
+        campaign.setToken(UUID.randomUUID().toString().replace("-", ""));
+        campaign.setDiscountType(type);
+        campaign.setDiscountValue(new BigDecimal(value));
+        campaign.setMaxRedemptions(maxRedemptions);
+        promoCampaignRepository.save(campaign);
     }
 
     private Venue venue(String name, String address, int capacity) {

@@ -14,9 +14,12 @@ import org.mapstruct.Mapping;
 public interface OrderMapper {
     @Mapping(target = "eventId", source = "event.id")
     @Mapping(target = "eventTitle", source = "event.title")
+    @Mapping(target = "promoCode", source = "promoCampaign.code")
+    @Mapping(target = "subtotalAmount", expression = "java(order.getTotalAmount().add(order.getDiscountAmount()))")
     OrderResponse toDto(Order order);
 
     // Buyer is filled by the service from a separate query (see OrderRepository.findBuyers).
+    @Mapping(target = "promoCode", source = "promoCampaign.code")
     @Mapping(target = "buyerId", ignore = true)
     @Mapping(target = "buyerEmail", ignore = true)
     @Mapping(target = "ticketCount", ignore = true)

@@ -13,7 +13,8 @@ public class PaymentResponse {
     private PaymentStatus status;
     private BigDecimal amount;
     private BigDecimal processingFee;
-    private boolean simulated; // always true for now: show it as a demonstration, not a real transaction
+    private boolean simulated; // true unless a live bank took real money: show it as a demonstration then
+    private String provider; // SIMULATED or HALYK
     private String failureReason;
     private LocalDateTime createdAt;
 }
