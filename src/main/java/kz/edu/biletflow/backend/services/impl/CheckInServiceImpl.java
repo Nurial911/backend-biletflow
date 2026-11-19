@@ -57,6 +57,11 @@ public class CheckInServiceImpl implements CheckInService {
             // Don't show details of a ticket that belongs to another organizer's event.
             return new CheckInResponse(CheckInResult.WRONG_EVENT, "This ticket is for a different event", null, null);
         }
+        // Reported as CANCELLED (no admission), so the verification app needs no new result value.
+        if (ticket.getStatus() == TicketStatus.REFUNDED) {
+            return new CheckInResponse(CheckInResult.CANCELLED, "This ticket was refunded",
+                    ticket.getUsedAt(), ticketMapper.toDto(ticket));
+        }
         if (event.getStatus() == EventStatus.CANCELLED || ticket.getStatus() == TicketStatus.CANCELLED) {
             return new CheckInResponse(CheckInResult.CANCELLED, "This ticket is cancelled",
                     ticket.getUsedAt(), ticketMapper.toDto(ticket));

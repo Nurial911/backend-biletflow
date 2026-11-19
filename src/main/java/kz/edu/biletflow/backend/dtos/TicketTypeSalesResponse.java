@@ -13,6 +13,7 @@ public class TicketTypeSalesResponse {
     private int quantity;         // total inventory
     private long sold;            // tickets in PAID orders
     private long reserved;        // tickets held by PENDING orders that haven't expired yet
+    private long refunded;        // tickets in REFUNDED orders (back on sale, so not subtracted from available)
     private long available;       // quantity - sold - reserved, never below 0
-    private BigDecimal revenue;   // PAID orders only, KZT
+    private BigDecimal revenue;   // gross, PAID and REFUNDED orders, KZT
 }

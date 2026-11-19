@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,9 +29,15 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     @Query("SELECT t FROM Ticket t WHERE t.id = :id")
     Optional<Ticket> findByIdForUpdate(@Param("id") Long id);
 
+    // All tickets of an order, locked so a refund and a scan of one of them run one after the other.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM Ticket t WHERE t.order.id = :orderId ORDER BY t.id")
+    List<Ticket> findAllByOrderIdForUpdate(@Param("orderId") Long orderId);
+
+    List<Ticket> findAllByOrderIdAndStatusInOrderByIdAsc(Long orderId, Collection<TicketStatus> statuses);
+
     long countByEventIdAndStatus(Long eventId, TicketStatus status);
 
-    List<Ticket> findAllByOrderIdAndStatusNotOrderByIdAsc(Long orderId, TicketStatus status);
 
     // Everyone holding a ticket in this status, for event-wide notifications.
     @Query("SELECT DISTINCT t.owner.id FROM Ticket t WHERE t.event.id = :eventId AND t.status = :status")

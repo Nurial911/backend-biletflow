@@ -3933,6 +3933,292 @@
       ]
     },
     {
+      "name": "7a Refunds",
+      "description": "The organizer refunds a paid order in full (simulated: no money moves). Its tickets stop admitting at once and go back on sale, the buyer is notified, and the sales report in folder 8 subtracts the refund. With PAYMENT_PROVIDER=halyk an order paid through the bank is refunded by the bank.",
+      "item": [
+        {
+          "name": "Order to refund",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"refundOrderId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{attendeeToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": {{eventId}},\n  \"items\": [ { \"ticketTypeId\": {{paidTypeId}}, \"quantity\": 1 } ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pay it",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Paid\", () => { pm.expect(pm.response.json().status).to.eql(\"PAID\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{refundOrderId}}/pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{refundOrderId}}",
+                "pay"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{attendeeToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buyer can't refund their own order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{refundOrderId}}/refund",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{refundOrderId}}",
+                "refund"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{attendeeToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Organizer refunds the order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Refunded\", () => { pm.expect(pm.response.json().status).to.eql(\"REFUNDED\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{refundOrderId}}/refund",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{refundOrderId}}",
+                "refund"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Duplicate purchase\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "A second refund is refused",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{refundOrderId}}/refund",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{refundOrderId}}",
+                "refund"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buyer sees the refund",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "const refunds = pm.response.json();",
+                  "pm.test(\"One refund\", () => { pm.expect(refunds.length).to.eql(1); });",
+                  "pm.test(\"Succeeded\", () => { pm.expect(refunds[0].status).to.eql(\"SUCCEEDED\"); });",
+                  "pm.test(\"Whole order\", () => { pm.expect(refunds[0].amount).to.eql(5000.00); });",
+                  "pm.test(\"Demonstration\", () => { pm.expect(refunds[0].simulated).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{refundOrderId}}/refunds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{refundOrderId}}",
+                "refunds"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{attendeeToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "8 Sales and moderation",
       "description": "Sales figures now include discounts. Admins can stop paid sales on one event.",
       "item": [
@@ -3945,10 +4231,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Gross\", () => { pm.expect(pm.response.json().revenue).to.eql(20000.00); });",
+                  "pm.test(\"Gross, refunded order included\", () => { pm.expect(pm.response.json().revenue).to.eql(25000.00); });",
                   "pm.test(\"Discounts\", () => { pm.expect(pm.response.json().discounts).to.eql(2000.00); });",
+                  "pm.test(\"Refunds\", () => { pm.expect(pm.response.json().refunds).to.eql(5000.00); });",
+                  "pm.test(\"Refunded order and ticket\", () => { pm.expect(pm.response.json().refundedOrders).to.eql(1); pm.expect(pm.response.json().ticketsRefunded).to.eql(1); });",
                   "pm.test(\"Net\", () => { pm.expect(pm.response.json().netRevenue).to.eql(18000.00); });",
-                  "pm.test(\"Fees (2.5%)\", () => { pm.expect(pm.response.json().processingFees).to.eql(450.00); });",
+                  "pm.test(\"Fees (2.5%, none on the refunded order)\", () => { pm.expect(pm.response.json().processingFees).to.eql(450.00); });",
                   "pm.test(\"Estimated payout\", () => { pm.expect(pm.response.json().estimatedPayout).to.eql(17550.00); });"
                 ]
               }

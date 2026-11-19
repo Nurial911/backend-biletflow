@@ -6,9 +6,12 @@ import kz.edu.biletflow.backend.dtos.OrderQuoteResponse;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
 import kz.edu.biletflow.backend.dtos.PayOrderRequest;
 import kz.edu.biletflow.backend.dtos.PaymentResponse;
+import kz.edu.biletflow.backend.dtos.RefundOrderRequest;
+import kz.edu.biletflow.backend.dtos.RefundResponse;
 import kz.edu.biletflow.backend.entities.SimulatedPaymentOutcome;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.OrderService;
+import kz.edu.biletflow.backend.services.RefundService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +26,20 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OrderControllerImpl implements OrderController {
     private final OrderService orderService;
+    private final RefundService refundService;
+
+    @Override
+    public ResponseEntity<OrderResponse> refundOrder(UserPrincipal currentUser, Long orderId, RefundOrderRequest request) {
+        boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
+        String reason = request != null ? request.getReason() : null;
+        return ResponseEntity.ok(refundService.refundOrder(orderId, currentUser.getId(), isPlatformAdmin, reason));
+    }
+
+    @Override
+    public ResponseEntity<List<RefundResponse>> getOrderRefunds(UserPrincipal currentUser, Long orderId) {
+        boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
+        return ResponseEntity.ok(refundService.getOrderRefunds(orderId, currentUser.getId(), isPlatformAdmin));
+    }
 
     @Override
     public ResponseEntity<OrderResponse> createOrder(UserPrincipal currentUser, CreateOrderRequest request) {

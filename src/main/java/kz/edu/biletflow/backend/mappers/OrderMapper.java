@@ -4,9 +4,11 @@ import kz.edu.biletflow.backend.dtos.EventOrderResponse;
 import kz.edu.biletflow.backend.dtos.OrderItemResponse;
 import kz.edu.biletflow.backend.dtos.OrderResponse;
 import kz.edu.biletflow.backend.dtos.PaymentResponse;
+import kz.edu.biletflow.backend.dtos.RefundResponse;
 import kz.edu.biletflow.backend.entities.Order;
 import kz.edu.biletflow.backend.entities.OrderItem;
 import kz.edu.biletflow.backend.entities.Payment;
+import kz.edu.biletflow.backend.entities.Refund;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -30,4 +32,7 @@ public interface OrderMapper {
     OrderItemResponse toDto(OrderItem item);
 
     PaymentResponse toDto(Payment payment);
+
+    @Mapping(target = "orderId", source = "order.id")
+    RefundResponse toDto(Refund refund);
 }

@@ -29,6 +29,10 @@ public class Event {
     @Column(name = "category")
     private String category;
 
+    // The organizer's own terms, shown to buyers (SRS 4.9). Refunds themselves are always the organizer's decision.
+    @Column(name = "refund_policy", length = 2000)
+    private String refundPolicy;
+
     @Column(name = "start_time")
     private LocalDateTime startTime;
 

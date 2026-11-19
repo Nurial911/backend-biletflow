@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.dtos;
 
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import kz.edu.biletflow.backend.entities.VisibilityStatus;
 import lombok.Data;
 
@@ -14,6 +15,9 @@ public class UpdateEventRequest{
     private String description;
 
     private String category;
+
+    @Size(max = 2000, message = "Refund policy must be at most 2000 characters")
+    private String refundPolicy;
 
     @Future(message = "Start time must be in the future")
     private LocalDateTime startTime;

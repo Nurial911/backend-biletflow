@@ -230,6 +230,7 @@ public class EventServiceImpl implements EventService {
         copy.setStatus(EventStatus.DRAFT);
         copy.setOrganizer(originalEvent.getOrganizer());
         copy.setCategory(originalEvent.getCategory());
+        copy.setRefundPolicy(originalEvent.getRefundPolicy());
         if (originalEvent.getPosterKey() != null) {
             // Own file, so removing one event's poster doesn't break the other.
             String copiedKey = posterStorage.copy(originalEvent.getPosterKey());

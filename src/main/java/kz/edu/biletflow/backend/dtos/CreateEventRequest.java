@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import kz.edu.biletflow.backend.entities.VisibilityStatus;
 import lombok.Data;
 
@@ -18,6 +19,9 @@ public class CreateEventRequest {
 
     @NotBlank(message = "Category cannot be blank")
     private String category;
+
+    @Size(max = 2000, message = "Refund policy must be at most 2000 characters")
+    private String refundPolicy;
 
     @Future(message = "Start time must be in the future")
     @NotNull(message = "Start time cannot be blank")

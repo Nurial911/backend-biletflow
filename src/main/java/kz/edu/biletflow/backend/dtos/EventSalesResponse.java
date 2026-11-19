@@ -9,9 +9,11 @@ import java.util.List;
 
 /**
  * Sales of one event. Counting rules:
- * sold/revenue = PAID orders only (free tickets count as sold with 0 revenue);
- * pending = PENDING orders still holding inventory; cancelled and expired are counted separately
- * and never add to revenue. Refunds don't exist yet — once they do, they must be subtracted here.
+ * ticketsSold = tickets of PAID orders (free tickets count, with 0 revenue); ticketsRefunded = tickets of
+ * REFUNDED orders, which are back on sale; pending = PENDING orders still holding inventory; cancelled and
+ * expired are counted separately and never add to revenue.
+ * Money: revenue is gross (every sale that happened, refunded ones included) and
+ * netRevenue = revenue - discounts - refunds, i.e. what buyers paid and kept paid.
  */
 @Data
 public class EventSalesResponse {
@@ -27,20 +29,24 @@ public class EventSalesResponse {
     private long pendingOrders;
     private long cancelledOrders;
     private long expiredOrders;
+    private long refundedOrders;
 
     private long ticketsSold;
     private long ticketsReserved;
-    // Gross: list prices of the tickets sold, before any promo discount. The same goes for
+    private long ticketsRefunded;
+    // Gross: list prices of PAID and REFUNDED orders, before any promo discount. The same goes for
     // ticketTypes[].revenue and salesByDay[].revenue.
     private BigDecimal revenue;
-    private BigDecimal discounts;
+    private BigDecimal discounts;  // promo discounts on PAID and REFUNDED orders
+    private BigDecimal refunds;    // money returned by successful refunds
     private BigDecimal netRevenue;
-    // Simulated figures: fees of successful payments, and net revenue minus those fees.
+    // Simulated figures: fees of successful payments of PAID orders (none on refunded orders),
+    // and net revenue minus those fees.
     private BigDecimal processingFees;
     private BigDecimal estimatedPayout;
 
     private List<TicketTypeSalesResponse> ticketTypes;
 
-    // Only filled by the single-event endpoint: PAID sales grouped by payment date.
+    // Only filled by the single-event endpoint: sales grouped by payment date, including ones refunded later.
     private List<DailySalesResponse> salesByDay;
 }
