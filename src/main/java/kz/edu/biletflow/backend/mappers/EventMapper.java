@@ -13,6 +13,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 public interface EventMapper {
     @Mapping(target = "organizerId", source = "organizer.id")
     @Mapping(target = "posterUrl", expression = "java(posterUrl(event))")
+    @Mapping(target = "phase", expression = "java(kz.edu.biletflow.backend.entities.EventPhase.of(event, java.time.LocalDateTime.now()))")
     EventResponse toDto(Event event);
 
     // Absolute URL so a frontend on another origin can use it directly; ?v= changes on every

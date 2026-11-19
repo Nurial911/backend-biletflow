@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.dtos;
 
+import kz.edu.biletflow.backend.entities.EventPhase;
 import kz.edu.biletflow.backend.entities.EventStatus;
 import kz.edu.biletflow.backend.entities.VisibilityStatus;
 import lombok.Data;
@@ -20,6 +21,8 @@ public class EventResponse {
     private Integer capacity;
     private VisibilityStatus visibilityStatus;
     private EventStatus status;
+    // UPCOMING / ACTIVE / COMPLETED / CANCELLED by the clock (EventPhase), for the organizer dashboard.
+    private EventPhase phase;
     private String posterUrl; // null when the event has no poster
     // False: paid ticket types are shown but can't be bought yet. Free ones are unaffected.
     private boolean paidSalesActive;
