@@ -26,11 +26,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
     // Per ticket type: [ticketTypeId, sold (PAID qty), reserved (unexpired PENDING qty), revenue (PAID)].
     // Revenue uses the unit price snapshot stored on the item, not the current ticket type price.
+    // It is gross: it includes orders refunded later (the refunds are subtracted separately).
+    // [ticketTypeId, sold (PAID qty), reserved (unexpired PENDING qty), revenue (PAID + REFUNDED), refunded qty]
     @Query("""
         SELECT i.ticketType.id,
                SUM(CASE WHEN o.status = :paid THEN i.quantity ELSE 0 END),
                SUM(CASE WHEN o.status = :pending AND o.expiresAt > :now THEN i.quantity ELSE 0 END),
-               SUM(CASE WHEN o.status = :paid THEN i.unitPrice * i.quantity ELSE 0 END)
+               SUM(CASE WHEN o.status = :paid OR o.status = :refunded THEN i.unitPrice * i.quantity ELSE 0 END),
+               SUM(CASE WHEN o.status = :refunded THEN i.quantity ELSE 0 END)
         FROM OrderItem i JOIN i.order o
         WHERE o.event.id IN :eventIds
         GROUP BY i.ticketType.id
@@ -38,6 +41,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<Object[]> aggregateSalesByTicketType(@Param("eventIds") Collection<Long> eventIds,
                                               @Param("paid") OrderStatus paid,
                                               @Param("pending") OrderStatus pending,
+                                              @Param("refunded") OrderStatus refunded,
                                               @Param("now") LocalDateTime now);
 
     // Per campaign, PAID orders only: [campaignId, tickets, gross revenue before discount].
@@ -50,16 +54,16 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
     List<Object[]> aggregatePaidByCampaign(@Param("campaignIds") Collection<Long> campaignIds,
                                            @Param("paid") OrderStatus paid);
 
-    // PAID sales of one event by payment date: [date, paidOrders, ticketsSold, revenue].
+    // Sales of one event by payment date, including orders refunded later: [date, paidOrders, ticketsSold, revenue].
     @Query("""
         SELECT cast(o.paidAt as LocalDate),
                COUNT(DISTINCT o.id),
                SUM(i.quantity),
                SUM(i.unitPrice * i.quantity)
         FROM OrderItem i JOIN i.order o
-        WHERE o.event.id = :eventId AND o.status = :paid AND o.paidAt IS NOT NULL
+        WHERE o.event.id = :eventId AND o.status IN :statuses AND o.paidAt IS NOT NULL
         GROUP BY cast(o.paidAt as LocalDate)
         ORDER BY cast(o.paidAt as LocalDate)
         """)
-    List<Object[]> dailyPaidSales(@Param("eventId") Long eventId, @Param("paid") OrderStatus paid);
+    List<Object[]> dailyPaidSales(@Param("eventId") Long eventId, @Param("statuses") Collection<OrderStatus> statuses);
 }

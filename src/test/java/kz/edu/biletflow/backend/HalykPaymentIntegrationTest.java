@@ -1,6 +1,7 @@
 package kz.edu.biletflow.backend;
 
 import kz.edu.biletflow.backend.services.PaymentSessionService;
+import kz.edu.biletflow.backend.services.RefundService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,10 @@ class HalykPaymentIntegrationTest extends ApiIntegrationTest {
     @Autowired
     private PaymentSessionService paymentSessionService;
 
+    @Autowired
+    private RefundService refundService;
+
+    private String organizer;
     private String buyer;
     private long orderId;
 
@@ -46,7 +51,8 @@ class HalykPaymentIntegrationTest extends ApiIntegrationTest {
     void orderWaitingForPayment() {
         BANK.down = false;
         BANK.refusesCharges = false;
-        String organizer = organizer();
+        BANK.refusesRefunds = false;
+        organizer = organizer();
         long event = publishedEvent(organizer);
         long type = ticketType(organizer, event, 2500, 10);
         buyer = register();
@@ -297,6 +303,96 @@ class HalykPaymentIntegrationTest extends ApiIntegrationTest {
     }
 
     // helpers //
+
+    // refunds //
+
+    @Test
+    void paidOrderIsRefundedThroughTheBank() {
+        String invoice = paidThroughTheBank();
+
+        JsonNode order = refund().assertStatus(200).json();
+
+        assertThat(order.get("status").asString()).isEqualTo("REFUNDED");
+        assertThat(BANK.statusOf(invoice)).isEqualTo("REFUND");
+        assertThat(BANK.operationCount("refund", invoice)).isEqualTo(1);
+        assertThat(tickets(buyer)).extracting(t -> t.get("status").asString()).containsOnly("REFUNDED");
+        JsonNode refund = refunds().get(0);
+        assertThat(refund.get("status").asString()).isEqualTo("SUCCEEDED");
+        assertThat(refund.get("provider").asString()).isEqualTo("HALYK");
+        assertThat(refund.get("simulated").asBoolean()).isTrue(); // test environment
+        assertThat(refund.get("amount").decimalValue()).isEqualByComparingTo("5000");
+        assertThat(notificationTypes(buyer)).contains("REFUND_COMPLETED");
+    }
+
+    @Test
+    void refusedBankRefundLeavesTheTicketsValidAndCanBeRetried() {
+        String invoice = paidThroughTheBank();
+        BANK.refusesRefunds = true;
+
+        refund().assertStatus(502);
+
+        assertThat(orderStatus()).isEqualTo("PAID");
+        assertThat(BANK.statusOf(invoice)).isEqualTo("CHARGE");
+        assertThat(tickets(buyer)).extracting(t -> t.get("status").asString()).containsOnly("VALID");
+        assertThat(refunds()).extracting(r -> r.get("status").asString()).containsExactly("FAILED");
+
+        BANK.refusesRefunds = false;
+        refund().assertStatus(200);
+        assertThat(refunds()).extracting(r -> r.get("status").asString()).containsExactly("FAILED", "SUCCEEDED");
+        assertThat(BANK.statusOf(invoice)).isEqualTo("REFUND");
+    }
+
+    @Test
+    void refundWhoseAnswerWasLostIsSettledByTheBackgroundCheck() {
+        String invoice = paidThroughTheBank();
+        refund().assertStatus(200);
+        // As if the server had stopped right after the bank returned the money.
+        jdbcTemplate.update("UPDATE refunds SET status = 'PENDING', completed_at = NULL, created_at = ? WHERE order_id = ?",
+                LocalDateTime.now().minusMinutes(5), orderId);
+        jdbcTemplate.update("UPDATE orders SET status = 'PAID' WHERE id = ?", orderId);
+
+        refundService.reconcilePendingRefunds();
+
+        assertThat(orderStatus()).isEqualTo("REFUNDED");
+        assertThat(refunds()).extracting(r -> r.get("status").asString()).containsExactly("SUCCEEDED");
+        assertThat(BANK.operationCount("refund", invoice)).isEqualTo(1);
+    }
+
+    @Test
+    void refundTheBankNeverCarriedOutIsMarkedFailedAndTheTicketsAdmitAgain() {
+        paidThroughTheBank();
+        // As if the server had stopped before it could call the bank.
+        jdbcTemplate.update("UPDATE tickets SET status = 'REFUNDED' WHERE order_id = ?", orderId);
+        jdbcTemplate.update("""
+                INSERT INTO refunds (order_id, payment_id, reference, status, amount, provider, simulated, initiated_by_id, created_at)
+                SELECT o.id, p.id, 'HALYK-REFUND-lost', 'PENDING', o.total_amount, 'HALYK', true, e.organizer_id, ?
+                FROM orders o JOIN payments p ON p.order_id = o.id AND p.status = 'SUCCEEDED' JOIN events e ON e.id = o.event_id
+                WHERE o.id = ?
+                """, LocalDateTime.now().minusMinutes(5), orderId);
+
+        refundService.reconcilePendingRefunds();
+
+        assertThat(orderStatus()).isEqualTo("PAID");
+        assertThat(refunds()).extracting(r -> r.get("status").asString()).containsExactly("FAILED");
+        assertThat(tickets(buyer)).extracting(t -> t.get("status").asString()).containsOnly("VALID");
+        refund().assertStatus(200);
+    }
+
+    private String paidThroughTheBank() {
+        String invoice = openSession();
+        BANK.authorize(invoice, 5000);
+        callback(invoice, BANK.secretOf(invoice)).assertStatus(200);
+        assertThat(orderStatus()).isEqualTo("PAID");
+        return invoice;
+    }
+
+    private Response refund() {
+        return call(HttpMethod.POST, "/api/orders/" + orderId + "/refund", organizer, null);
+    }
+
+    private List<JsonNode> refunds() {
+        return list(call(HttpMethod.GET, "/api/orders/" + orderId + "/refunds", buyer, null).assertStatus(200).json());
+    }
 
     private String sessionPath() {
         return "/api/orders/" + orderId + "/payment-session";

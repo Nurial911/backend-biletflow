@@ -13,6 +13,7 @@ import kz.edu.biletflow.backend.entities.Order;
 import kz.edu.biletflow.backend.entities.OrderItem;
 import kz.edu.biletflow.backend.entities.OrderStatus;
 import kz.edu.biletflow.backend.entities.PaymentStatus;
+import kz.edu.biletflow.backend.entities.RefundStatus;
 import kz.edu.biletflow.backend.entities.TicketType;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
@@ -20,6 +21,7 @@ import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrderItemRepository;
 import kz.edu.biletflow.backend.repositories.OrderRepository;
 import kz.edu.biletflow.backend.repositories.PaymentRepository;
+import kz.edu.biletflow.backend.repositories.RefundRepository;
 import kz.edu.biletflow.backend.repositories.TicketTypeRepository;
 import kz.edu.biletflow.backend.services.SalesService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +45,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class SalesServiceImpl implements SalesService {
+    // Orders that were sales at some point: gross revenue and discounts count both.
+    private static final List<OrderStatus> SALE_STATUSES = List.of(OrderStatus.PAID, OrderStatus.REFUNDED);
+
+    private final RefundRepository refundRepository;
     private final EventRepository eventRepository;
     private final TicketTypeRepository ticketTypeRepository;
     private final OrderRepository orderRepository;
@@ -70,11 +76,15 @@ public class SalesServiceImpl implements SalesService {
         totals.setEvents(eventSales.size());
         totals.setRevenue(money(BigDecimal.ZERO));
         totals.setDiscounts(money(BigDecimal.ZERO));
+        totals.setRefunds(money(BigDecimal.ZERO));
         totals.setNetRevenue(money(BigDecimal.ZERO));
         totals.setProcessingFees(money(BigDecimal.ZERO));
         totals.setEstimatedPayout(money(BigDecimal.ZERO));
         for (EventSalesResponse e : eventSales) {
             totals.setDiscounts(totals.getDiscounts().add(e.getDiscounts()));
+            totals.setRefunds(totals.getRefunds().add(e.getRefunds()));
+            totals.setRefundedOrders(totals.getRefundedOrders() + e.getRefundedOrders());
+            totals.setTicketsRefunded(totals.getTicketsRefunded() + e.getTicketsRefunded());
             totals.setNetRevenue(totals.getNetRevenue().add(e.getNetRevenue()));
             totals.setProcessingFees(totals.getProcessingFees().add(e.getProcessingFees()));
             totals.setEstimatedPayout(totals.getEstimatedPayout().add(e.getEstimatedPayout()));
@@ -97,7 +107,7 @@ public class SalesServiceImpl implements SalesService {
         Event event = getManagedEvent(eventId, requesterId, isPlatformAdmin);
         EventSalesResponse response = buildEventSales(List.of(event)).getFirst();
 
-        List<DailySalesResponse> daily = orderItemRepository.dailyPaidSales(eventId, OrderStatus.PAID).stream()
+        List<DailySalesResponse> daily = orderItemRepository.dailyPaidSales(eventId, SALE_STATUSES).stream()
                 .map(row -> new DailySalesResponse((LocalDate) row[0], toLong(row[1]), toLong(row[2]), toMoney(row[3])))
                 .toList();
         response.setSalesByDay(daily);
@@ -161,20 +171,24 @@ public class SalesServiceImpl implements SalesService {
                 .collect(Collectors.groupingBy(t -> t.getEvent().getId()));
 
         Map<Long, Object[]> itemStats = orderItemRepository
-                .aggregateSalesByTicketType(eventIds, OrderStatus.PAID, OrderStatus.PENDING, now).stream()
+                .aggregateSalesByTicketType(eventIds, OrderStatus.PAID, OrderStatus.PENDING, OrderStatus.REFUNDED, now).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> row));
 
         Map<Long, Object[]> orderStats = orderRepository
                 .countOrdersByEvent(eventIds, OrderStatus.PAID, OrderStatus.PENDING,
-                        OrderStatus.CANCELLED, OrderStatus.EXPIRED, now).stream()
+                        OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.REFUNDED, now).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> row));
 
         Map<Long, BigDecimal> feesByEvent = paymentRepository
-                .sumProcessingFeesByEvent(eventIds, PaymentStatus.SUCCEEDED).stream()
+                .sumProcessingFeesByEvent(eventIds, PaymentStatus.SUCCEEDED, OrderStatus.PAID).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> toMoney(row[1])));
 
         Map<Long, BigDecimal> discountsByEvent = orderRepository
-                .sumDiscountsByEvent(eventIds, OrderStatus.PAID).stream()
+                .sumDiscountsByEvent(eventIds, SALE_STATUSES).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> toMoney(row[1])));
+
+        Map<Long, BigDecimal> refundsByEvent = refundRepository
+                .sumAmountsByEvent(eventIds, RefundStatus.SUCCEEDED).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> toMoney(row[1])));
 
         List<EventSalesResponse> result = new ArrayList<>();
@@ -194,10 +208,12 @@ public class SalesServiceImpl implements SalesService {
                 dto.setPendingOrders(toLong(counts[2]));
                 dto.setCancelledOrders(toLong(counts[3]));
                 dto.setExpiredOrders(toLong(counts[4]));
+                dto.setRefundedOrders(toLong(counts[5]));
             }
 
             long sold = 0;
             long reserved = 0;
+            long refunded = 0;
             BigDecimal revenue = BigDecimal.ZERO;
             List<TicketTypeSalesResponse> types = new ArrayList<>();
             for (TicketType type : typesByEvent.getOrDefault(event.getId(), List.of())) {
@@ -205,6 +221,7 @@ public class SalesServiceImpl implements SalesService {
                 long typeSold = stats != null ? toLong(stats[1]) : 0;
                 long typeReserved = stats != null ? toLong(stats[2]) : 0;
                 BigDecimal typeRevenue = stats != null ? toMoney(stats[3]) : money(BigDecimal.ZERO);
+                long typeRefunded = stats != null ? toLong(stats[4]) : 0;
 
                 TicketTypeSalesResponse t = new TicketTypeSalesResponse();
                 t.setTicketTypeId(type.getId());
@@ -214,21 +231,26 @@ public class SalesServiceImpl implements SalesService {
                 t.setQuantity(type.getQuantity());
                 t.setSold(typeSold);
                 t.setReserved(typeReserved);
+                t.setRefunded(typeRefunded);
                 t.setAvailable(Math.max(type.getQuantity() - typeSold - typeReserved, 0));
                 t.setRevenue(typeRevenue);
                 types.add(t);
 
                 sold += typeSold;
                 reserved += typeReserved;
+                refunded += typeRefunded;
                 revenue = revenue.add(typeRevenue);
             }
             dto.setTicketTypes(types);
             dto.setTicketsSold(sold);
             dto.setTicketsReserved(reserved);
+            dto.setTicketsRefunded(refunded);
             dto.setRevenue(money(revenue));
             BigDecimal discounts = discountsByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
-            BigDecimal netRevenue = money(revenue).subtract(discounts);
+            BigDecimal refunds = refundsByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
+            BigDecimal netRevenue = money(revenue).subtract(discounts).subtract(refunds);
             dto.setDiscounts(discounts);
+            dto.setRefunds(refunds);
             dto.setNetRevenue(netRevenue);
             BigDecimal fees = feesByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
             dto.setProcessingFees(fees);

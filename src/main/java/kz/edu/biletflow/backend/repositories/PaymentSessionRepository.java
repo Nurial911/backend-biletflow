@@ -16,6 +16,9 @@ import java.util.Optional;
 public interface PaymentSessionRepository extends JpaRepository<PaymentSession, Long> {
     Optional<PaymentSession> findByInvoiceId(String invoiceId);
 
+    // The visit in which the bank's transaction was made; its invoice is how the bank reports the transaction.
+    Optional<PaymentSession> findFirstByTransactionId(String transactionId);
+
     boolean existsByInvoiceIdEndingWith(String suffix);
 
     @Query("SELECT s.order.id FROM PaymentSession s WHERE s.id = :id")

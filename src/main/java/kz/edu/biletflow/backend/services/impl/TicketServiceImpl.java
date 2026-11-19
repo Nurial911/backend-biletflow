@@ -51,6 +51,9 @@ public class TicketServiceImpl implements TicketService {
         if (ticket.getStatus() == TicketStatus.CANCELLED) {
             throw new BusinessRuleViolationException("This ticket is cancelled and can no longer be printed");
         }
+        if (ticket.getStatus() == TicketStatus.REFUNDED) {
+            throw new BusinessRuleViolationException("This ticket was refunded and can no longer be printed");
+        }
         return ticketPdfGenerator.generate(List.of(ticket));
     }
 

@@ -27,6 +27,7 @@ final class FakeHalykServer {
     private final List<String> operations = new CopyOnWriteArrayList<>();
     volatile boolean down;
     volatile boolean refusesCharges;
+    volatile boolean refusesRefunds;
 
     private static final class Transaction {
         final String id = UUID.randomUUID().toString();
@@ -126,7 +127,7 @@ final class FakeHalykServer {
         String[] parts = exchange.getRequestURI().getPath().split("/");
         String id = parts[2];
         String name = parts[3];
-        if ("charge".equals(name) && refusesCharges) {
+        if (("charge".equals(name) && refusesCharges) || ("refund".equals(name) && refusesRefunds)) {
             respond(exchange, 400, "{\"code\":100,\"message\":\"refused\"}");
             return;
         }

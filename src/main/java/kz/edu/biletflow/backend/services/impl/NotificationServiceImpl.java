@@ -125,8 +125,9 @@ public class NotificationServiceImpl implements NotificationService {
         if (notification.getOrderId() == null) {
             return null;
         }
-        List<Ticket> tickets = ticketRepository.findAllByOrderIdAndStatusNotOrderByIdAsc(
-                notification.getOrderId(), TicketStatus.CANCELLED);
+        // Only tickets that still admit (or did): an email queued before a cancellation or refund leaves them out.
+        List<Ticket> tickets = ticketRepository.findAllByOrderIdAndStatusInOrderByIdAsc(
+                notification.getOrderId(), List.of(TicketStatus.VALID, TicketStatus.USED));
         return tickets.isEmpty() ? null : new OutgoingMail.Attachment(
                 "tickets-order-" + notification.getOrderId() + ".pdf", ticketPdfGenerator.generate(tickets));
     }

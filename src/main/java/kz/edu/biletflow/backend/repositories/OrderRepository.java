@@ -27,14 +27,15 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @Query("SELECT o FROM Order o WHERE o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
-    // Per event: [eventId, paid, pending (still holding inventory), cancelled, expired].
+    // Per event: [eventId, paid, pending (still holding inventory), cancelled, expired, refunded].
     // A PENDING order past its hold counts as expired even before the scheduler flips it.
     @Query("""
         SELECT o.event.id,
                SUM(CASE WHEN o.status = :paid THEN 1 ELSE 0 END),
                SUM(CASE WHEN o.status = :pending AND o.expiresAt > :now THEN 1 ELSE 0 END),
                SUM(CASE WHEN o.status = :cancelled THEN 1 ELSE 0 END),
-               SUM(CASE WHEN o.status = :expired OR (o.status = :pending AND o.expiresAt <= :now) THEN 1 ELSE 0 END)
+               SUM(CASE WHEN o.status = :expired OR (o.status = :pending AND o.expiresAt <= :now) THEN 1 ELSE 0 END),
+               SUM(CASE WHEN o.status = :refunded THEN 1 ELSE 0 END)
         FROM Order o
         WHERE o.event.id IN :eventIds
         GROUP BY o.event.id
@@ -44,6 +45,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                                       @Param("pending") OrderStatus pending,
                                       @Param("cancelled") OrderStatus cancelled,
                                       @Param("expired") OrderStatus expired,
+                                      @Param("refunded") OrderStatus refunded,
                                       @Param("now") LocalDateTime now);
 
     // [orderId, buyerId, buyerEmail]; the left join leaves the email null for soft-deleted buyers
@@ -77,14 +79,15 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                                        @Param("pending") OrderStatus pending,
                                        @Param("now") LocalDateTime now);
 
-    // [eventId, sum of discounts on PAID orders]
+    // [eventId, sum of discounts on orders in the given statuses (PAID and REFUNDED: discounts given on all sales)]
     @Query("""
         SELECT o.event.id, SUM(o.discountAmount)
         FROM Order o
-        WHERE o.event.id IN :eventIds AND o.status = :paid
+        WHERE o.event.id IN :eventIds AND o.status IN :statuses
         GROUP BY o.event.id
         """)
-    List<Object[]> sumDiscountsByEvent(@Param("eventIds") Collection<Long> eventIds, @Param("paid") OrderStatus paid);
+    List<Object[]> sumDiscountsByEvent(@Param("eventIds") Collection<Long> eventIds,
+                                       @Param("statuses") Collection<OrderStatus> statuses);
 
     // Releases the inventory of unpaid orders (queries that count "sold" ignore EXPIRED).
     @Modifying

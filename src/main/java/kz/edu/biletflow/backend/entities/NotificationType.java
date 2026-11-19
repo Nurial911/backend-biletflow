@@ -4,6 +4,8 @@ package kz.edu.biletflow.backend.entities;
 public enum NotificationType {
     ORDER_CONFIRMED,
     PAYMENT_FAILED,
+    REFUND_COMPLETED,
+    REGISTRATION_CANCELLED,
     EVENT_UPDATED,
     EVENT_CANCELLED,
     ORGANIZER_VERIFICATION,

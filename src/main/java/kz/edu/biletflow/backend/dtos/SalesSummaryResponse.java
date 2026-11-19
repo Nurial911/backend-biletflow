@@ -16,10 +16,13 @@ public class SalesSummaryResponse {
         private int events;
         private long paidOrders;
         private long pendingOrders;
+        private long refundedOrders;
         private long ticketsSold;
         private long ticketsReserved;
+        private long ticketsRefunded;
         private BigDecimal revenue;
         private BigDecimal discounts;
+        private BigDecimal refunds;
         private BigDecimal netRevenue;
         private BigDecimal processingFees;
         private BigDecimal estimatedPayout;

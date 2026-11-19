@@ -12,6 +12,7 @@ public class EventResponse {
     private String title;
     private String description;
     private String category;
+    private String refundPolicy; // the organizer's own terms, null if none
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private LocalDateTime registrationOpeningTime;
