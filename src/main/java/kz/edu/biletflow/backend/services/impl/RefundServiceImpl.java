@@ -12,6 +12,7 @@ import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.*;
 import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.NotificationService;
+import kz.edu.biletflow.backend.services.PayoutService;
 import kz.edu.biletflow.backend.services.RefundService;
 import kz.edu.biletflow.backend.services.impl.HalykClient.Transaction;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +54,7 @@ public class RefundServiceImpl implements RefundService {
     private final NotificationService notificationService;
     private final OrderMapper orderMapper;
     private final TransactionTemplate transactionTemplate;
+    private final PayoutService payoutService;
 
     // A refund the bank still has to carry out.
     private record BankRefund(Long refundId, String transactionId) {
@@ -126,6 +128,10 @@ public class RefundServiceImpl implements RefundService {
             cancelRegistration(order, tickets, requesterId, reason);
             return null;
         }
+
+        // Money already paid out to the organizer can't be returned to the buyer (simulated payouts, SRS 3.2).
+        // Locks the payout row, so the payout can't be made while this refund is under way.
+        payoutService.ensureRefundAllowed(order.getEvent().getId());
 
         tickets.forEach(t -> t.setStatus(TicketStatus.REFUNDED)); // invalid from now on, even while the bank works
         Payment payment = paymentRepository.findFirstByOrderIdAndStatusOrderByIdDesc(orderId, PaymentStatus.SUCCEEDED)

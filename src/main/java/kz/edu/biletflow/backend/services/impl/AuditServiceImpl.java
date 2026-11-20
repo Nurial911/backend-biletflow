@@ -23,7 +23,8 @@ public class AuditServiceImpl implements AuditService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void record(Long actorId, AuditAction action, Long entityId, @Nullable Long eventId, String description) {
-        String actorEmail = userRepository.findById(actorId).map(User::getEmail).orElse(null);
+        // A null actor is the system itself (e.g. the payout scheduler).
+        String actorEmail = actorId == null ? null : userRepository.findById(actorId).map(User::getEmail).orElse(null);
         String text = description.length() > MAX_DESCRIPTION_LENGTH
                 ? description.substring(0, MAX_DESCRIPTION_LENGTH)
                 : description;

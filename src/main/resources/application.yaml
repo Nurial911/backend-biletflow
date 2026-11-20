@@ -60,6 +60,9 @@ app:
     enabled: ${SEED_DATA:false}
   uploads:
     dir: ${UPLOADS_DIR:./uploads}   # where poster images are stored
+  payouts:   # simulated organizer payouts: no money moves
+    delay-hours: ${PAYOUT_DELAY_HOURS:72}   # placeholder; hours after an event ends before it is paid out
+    run-delay-ms: 300000                    # how often PayoutScheduler runs
 
 server:
   port: 8080

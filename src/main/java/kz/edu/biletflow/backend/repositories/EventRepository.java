@@ -22,6 +22,21 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
     @Query("SELECT e FROM Event e JOIN FETCH e.organizer WHERE e.startTime >= :from AND e.startTime < :to ORDER BY e.startTime, e.id")
     List<Event> findAllStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
+    // Finished events that sold paid tickets and have no payout yet. "Finished" repeats EventPhase.effectiveEnd:
+    // the end time, or the end of the start day when there is none (start before today's midnight).
+    @Query("""
+        SELECT e.id FROM Event e
+        WHERE e.status <> kz.edu.biletflow.backend.entities.EventStatus.CANCELLED
+          AND ((e.endTime IS NOT NULL AND e.endTime <= :now) OR (e.endTime IS NULL AND e.startTime < :todayStart))
+          AND EXISTS (SELECT o.id FROM Order o WHERE o.event = e
+                      AND o.status = kz.edu.biletflow.backend.entities.OrderStatus.PAID AND o.totalAmount > 0)
+          AND NOT EXISTS (SELECT p.id FROM Payout p WHERE p.event = e)
+        ORDER BY e.id
+        """)
+    List<Long> findFinishedIdsWithoutPayout(@Param("now") LocalDateTime now,
+                                            @Param("todayStart") LocalDateTime todayStart,
+                                            Pageable pageable);
+
     long countByStatus(EventStatus status);
 
     long countBySuspendedTrue();
