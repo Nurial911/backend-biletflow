@@ -12,7 +12,7 @@ public interface SupportService {
     SupportCaseDetailResponse openCase(Long userId, boolean isPlatformAdmin, OpenSupportCaseRequest request);
 
     Page<SupportCaseResponse> getCases(Long userId, boolean isPlatformAdmin, @Nullable SupportCaseStatus status,
-                                       @Nullable Boolean escalated, Pageable pageable);
+                                       @Nullable Boolean escalated, @Nullable Long eventId, Pageable pageable);
 
     SupportCaseDetailResponse getCase(Long caseId, Long userId, boolean isPlatformAdmin);
 
