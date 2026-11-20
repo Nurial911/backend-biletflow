@@ -44,6 +44,7 @@ public class EventHistoryServiceImpl implements EventHistoryService {
     private static final LocalDateTime EARLIEST = LocalDate.of(2000, 1, 1).atStartOfDay();
     private static final LocalDateTime LATEST = LocalDate.of(3000, 1, 1).atStartOfDay();
     private static final String SUPPORT_TEAM_NAME = "BiletFlow Support";
+    private static final String SYSTEM_NAME = "BiletFlow"; // actions without an actor, e.g. scheduled payouts
 
     private final EventRepository eventRepository;
     private final AuditLogRepository auditLogRepository;
@@ -148,7 +149,8 @@ public class EventHistoryServiceImpl implements EventHistoryService {
             return new EventHistoryEntryResponse(entry.getId(), entry.getCreatedAt(), null, SUPPORT_TEAM_NAME, null,
                     role, entry.getAction(), entry.getEntityType(), entry.getEntityId(), entry.getDescription());
         }
-        String name = actor != null && actor.getFullName() != null && !actor.getFullName().isBlank()
+        String name = entry.getActorId() == null ? SYSTEM_NAME
+                : actor != null && actor.getFullName() != null && !actor.getFullName().isBlank()
                 ? actor.getFullName()
                 : entry.getActorEmail();
         return new EventHistoryEntryResponse(entry.getId(), entry.getCreatedAt(), entry.getActorId(), name,

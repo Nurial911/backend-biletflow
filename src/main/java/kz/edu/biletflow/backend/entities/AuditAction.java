@@ -58,7 +58,14 @@ public enum AuditAction {
     // Recorded without an event id on purpose: organizers don't see reports about their events.
     EVENT_REPORT_REVIEWED("EVENT_REPORT"),
 
-    PLATFORM_SETTINGS_UPDATED("PLATFORM_SETTINGS");
+    PLATFORM_SETTINGS_UPDATED("PLATFORM_SETTINGS"),
+
+    // Simulated payouts. Scheduler actions have no actor (shown as "BiletFlow" in the event history).
+    PAYOUT_SCHEDULED("PAYOUT"),
+    PAYOUT_HELD("PAYOUT"),
+    PAYOUT_RELEASED("PAYOUT"),
+    PAYOUT_PAID("PAYOUT"),
+    PAYOUT_CANCELLED("PAYOUT");
 
     private final String entityType;
 }

@@ -15,4 +15,7 @@ public interface AdminReportService {
 
     // One row per payment attempt in the range, failed ones included.
     CsvReport paymentsReport(@Nullable LocalDate from, @Nullable LocalDate to);
+
+    // One row per simulated payout scheduled in the range, whatever its status.
+    CsvReport payoutsReport(@Nullable LocalDate from, @Nullable LocalDate to);
 }

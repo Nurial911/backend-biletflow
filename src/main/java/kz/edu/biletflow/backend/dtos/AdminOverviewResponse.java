@@ -18,6 +18,10 @@ public class AdminOverviewResponse {
     private long openEventReports;
     private long suspendedPaidSales;
 
+    // Simulated payouts waiting for their date, and ones on hold (automatic or by an admin).
+    private long scheduledPayouts;
+    private long payoutsOnHold;
+
     private long failedPaymentsLast24Hours;
     private long failedPaymentsLast7Days;
     private long pendingRefunds;

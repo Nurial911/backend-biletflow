@@ -20,6 +20,7 @@ import kz.edu.biletflow.backend.entities.OrganizerVerificationStatus;
 import kz.edu.biletflow.backend.entities.PaidSalesStatus;
 import kz.edu.biletflow.backend.entities.Payment;
 import kz.edu.biletflow.backend.entities.PaymentStatus;
+import kz.edu.biletflow.backend.entities.Payout;
 import kz.edu.biletflow.backend.entities.Refund;
 import kz.edu.biletflow.backend.entities.RefundStatus;
 import kz.edu.biletflow.backend.entities.SupportCaseStatus;
@@ -31,6 +32,7 @@ import kz.edu.biletflow.backend.repositories.OrderRepository;
 import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
 import kz.edu.biletflow.backend.repositories.PaidSalesActivationRepository;
 import kz.edu.biletflow.backend.repositories.PaymentRepository;
+import kz.edu.biletflow.backend.repositories.PayoutRepository;
 import kz.edu.biletflow.backend.repositories.RefundRepository;
 import kz.edu.biletflow.backend.repositories.SupportCaseRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
@@ -61,6 +63,7 @@ public class AdminServiceImpl implements AdminService {
     private final SupportCaseRepository supportCaseRepository;
     private final OrganizerProfileRepository organizerProfileRepository;
     private final PaidSalesActivationRepository activationRepository;
+    private final PayoutRepository payoutRepository;
     private final EventMapper eventMapper;
 
     @Override
@@ -76,6 +79,8 @@ public class AdminServiceImpl implements AdminService {
         dto.setSuspendedEvents(eventRepository.countBySuspendedTrue());
         dto.setOpenEventReports(eventReportRepository.countByStatus(EventReport.Status.OPEN));
         dto.setSuspendedPaidSales(activationRepository.countByStatus(PaidSalesStatus.SUSPENDED));
+        dto.setScheduledPayouts(payoutRepository.countByStatus(Payout.Status.SCHEDULED));
+        dto.setPayoutsOnHold(payoutRepository.countByStatus(Payout.Status.ON_HOLD));
         dto.setFailedPaymentsLast24Hours(
                 paymentRepository.countByStatusAndCreatedAtGreaterThanEqual(PaymentStatus.FAILED, now.minusHours(24)));
         dto.setFailedPaymentsLast7Days(

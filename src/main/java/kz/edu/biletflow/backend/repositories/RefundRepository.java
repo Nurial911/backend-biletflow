@@ -30,6 +30,10 @@ public interface RefundRepository extends JpaRepository<Refund, Long>, JpaSpecif
 
     boolean existsByOrderIdAndStatus(Long orderId, RefundStatus status);
 
+    // A bank refund still running for the event: its payout waits until it is settled.
+    @Query("SELECT COUNT(r) > 0 FROM Refund r WHERE r.order.event.id = :eventId AND r.status = :status")
+    boolean existsByEventIdAndStatus(@Param("eventId") Long eventId, @Param("status") RefundStatus status);
+
     @Query("SELECT r.order.id FROM Refund r WHERE r.id = :id")
     Long findOrderIdById(@Param("id") Long id);
 

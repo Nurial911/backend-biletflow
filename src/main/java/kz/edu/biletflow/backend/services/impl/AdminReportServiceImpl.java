@@ -5,9 +5,11 @@ import kz.edu.biletflow.backend.dtos.EventSalesResponse;
 import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.Order;
 import kz.edu.biletflow.backend.entities.Payment;
+import kz.edu.biletflow.backend.entities.Payout;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.PaymentRepository;
+import kz.edu.biletflow.backend.repositories.PayoutRepository;
 import kz.edu.biletflow.backend.services.AdminReportService;
 import kz.edu.biletflow.backend.services.SalesService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class AdminReportServiceImpl implements AdminReportService {
 
     private final EventRepository eventRepository;
     private final PaymentRepository paymentRepository;
+    private final PayoutRepository payoutRepository;
     private final SalesService salesService;
 
     @Override
@@ -70,6 +73,27 @@ public class AdminReportServiceImpl implements AdminReportService {
                     order.getEvent().getTitle(), order.getUser().getEmail());
         }
         return new CsvReport(fileName("payments", range), csv.toBytes());
+    }
+
+    @Override
+    public CsvReport payoutsReport(@Nullable LocalDate from, @Nullable LocalDate to) {
+        DateRange range = range(from, to);
+        List<Payout> payouts = payoutRepository.findAllScheduledBetween(range.from().atStartOfDay(),
+                range.to().plusDays(1).atStartOfDay());
+
+        // "simulated" stays in every row: no payout moves real money (SRS 3.2).
+        CsvWriter csv = new CsvWriter().row("payout_id", "event_id", "event_title", "organizer_email", "status",
+                "hold_type", "status_reason", "simulated", "gross_revenue_kzt", "discounts_kzt", "refunds_kzt",
+                "processing_fees_kzt", "amount_kzt", "scheduled_for", "paid_at", "reference", "bank_name", "iban_last4");
+        for (Payout payout : payouts) {
+            csv.row(payout.getId(), payout.getEvent().getId(), payout.getEvent().getTitle(),
+                    payout.getOrganizer().getEmail(), payout.getStatus().name(),
+                    payout.getHoldType() != null ? payout.getHoldType().name() : null, payout.getStatusReason(),
+                    payout.isSimulated(), payout.getGrossRevenue(), payout.getDiscounts(), payout.getRefunds(),
+                    payout.getProcessingFees(), payout.getAmount(), payout.getScheduledFor(), payout.getPaidAt(),
+                    payout.getReference(), payout.getBankName(), payout.getIbanLast4());
+        }
+        return new CsvReport(fileName("payouts", range), csv.toBytes());
     }
 
     private record DateRange(LocalDate from, LocalDate to) {

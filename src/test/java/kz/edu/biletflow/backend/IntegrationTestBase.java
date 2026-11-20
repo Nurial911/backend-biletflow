@@ -28,5 +28,7 @@ public abstract class IntegrationTestBase {
         registry.add("SEED_DATA", () -> "false");
         // Tests deliver queued emails themselves, so the background dispatcher must stay out of the way.
         registry.add("app.mail.dispatch-delay-ms", () -> "3600000");
+        // Payout tests run payouts themselves (PayoutService.runPayouts).
+        registry.add("app.payouts.run-delay-ms", () -> "3600000");
     }
 }
