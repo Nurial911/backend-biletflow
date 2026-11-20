@@ -1,0 +1,156 @@
+# CI/CD for the BiletFlow backend.
+#
+#   test   (every PR and every push to master)  run the tests, build the jar
+#   image  (push to master only)                 put the jar in a Docker image, push it to ghcr.io
+#   deploy (push to master only)                 run that image on the VM, roll back if it isn't healthy
+#
+# Each job runs on a fresh GitHub machine ("runner"). "needs:" makes a job wait for another one and
+# skips it if that one failed, so a red test never reaches the server.
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# Least privilege by default; the image job asks for package access below.
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the older run. Runs on master are never cancelled midway.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Test and build the jar
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # The tests assume Almaty time, like the app in Docker (runners default to UTC).
+      TZ: Asia/Almaty
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven   # reuses downloaded dependencies between runs
+
+      # "verify" compiles, runs all tests and packages the jar. The integration tests start PostgreSQL and
+      # Mailpit with Testcontainers; the runner has Docker, so nothing else is needed.
+      - name: Run tests and build the jar
+        run: ./mvnw -B verify
+
+      - name: Keep the test reports if something failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+      # Hands the tested jar to the image job (it runs on another machine).
+      - name: Save the jar for the image job
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: target/*.jar
+          if-no-files-found: error
+          retention-days: 7
+
+  image:
+    name: Build and push the Docker image
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    # The VM has an ARM CPU (aarch64). GitHub's ARM runner (free for public repositories) builds the
+    # arm64 image natively, without emulation.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write   # push to ghcr.io with the built-in GITHUB_TOKEN
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Get the jar from the test job
+        uses: actions/download-artifact@v5
+        with:
+          name: app-jar
+          path: image-context   # build context = a folder with just the jar
+
+      # Image names must be lowercase; the repository owner is "Nurial911".
+      - name: Work out the image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Tagged with the commit SHA (what deploy uses, so every version stays addressable) and "latest".
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: image-context
+          file: deploy/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  deploy:
+    name: Deploy to the VM
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # One deployment at a time; a second merge waits for the first deploy to finish.
+    concurrency:
+      group: deploy-vm
+      cancel-in-progress: false
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      # The private key and the VM's host key come from repository secrets, never from the repo.
+      # known_hosts makes SSH refuse to connect if something else answers at VM_HOST.
+      - name: Set up SSH
+        env:
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VM_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # Copies the current deploy.sh to ~/app on the VM and runs it with this commit's tag.
+      # deploy.sh exits with an error if the new version isn't healthy (after rolling back), which fails this job.
+      - name: Deploy and health-check
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+        run: |
+          ssh_opts=(-i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20)
+          scp "${ssh_opts[@]}" deploy/deploy.sh "$VM_USER@$VM_HOST:app/deploy.sh"
+          ssh "${ssh_opts[@]}" "$VM_USER@$VM_HOST" "bash ~/app/deploy.sh $GITHUB_SHA"
+
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

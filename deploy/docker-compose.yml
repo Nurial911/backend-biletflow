@@ -1,0 +1,69 @@
+# The server's stack: copy this file to ~/app on the VM (with Caddyfile and app.env).
+# The CI pipeline never edits it; deploy.sh only changes TAG in ~/app/.env and restarts.
+#
+#   ~/app/.env      TAG=<image tag> (written by deploy.sh) and DOMAIN=<your domain>. Read by Compose
+#                   itself to fill in ${TAG} and ${DOMAIN} below. No secrets.
+#   ~/app/app.env   the app's secrets (database password, JWT secret, ...), passed into the containers
+#                   with env_file. Never in git. See app.env.example.
+
+# Same project name as the old stack in ~/biletflow, so the same volumes are used: the database,
+# poster uploads and HTTPS certificates carry over. Never run "docker compose down -v": -v deletes them.
+name: biletflow
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: app.env              # POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+    environment:
+      TZ: Asia/Almaty
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"      # this machine only (SSH tunnel for DBeaver/IntelliJ)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    # Built and pushed by the pipeline; TAG is the git commit it was built from.
+    image: ghcr.io/nurial911/backend-biletflow:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: app.env              # DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET, ...
+    environment:
+      # Behind Caddy: trust X-Forwarded-* so Location headers and Swagger use https and the real host.
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads       # event posters
+    ports:
+      # This machine only: the public reaches the app through Caddy (HTTPS). deploy.sh checks
+      # http://localhost:8080/actuator/health here.
+      - "127.0.0.1:8080:8080"
+
+  # HTTPS reverse proxy; gets and renews certificates by itself. Ports 80 and 443 must be open.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in ~/app/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:

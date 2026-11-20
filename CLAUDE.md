@@ -11,6 +11,32 @@ Also: admin event suspension + role management, organizer sales dashboard API, s
 Not implemented yet: assigned seating, payouts.
 `BiletFlow_SRS_Initial_Draft.pdf` (v0.3, in the user's Downloads) is the requirements source.
 
+## Git workflow (follow these)
+
+- After finishing a feature or fix: commit on a feature branch, push the branch, and open a PR with `gh pr create`. Don't ask first.
+- **Never merge PRs and never push directly to `master`.** A merge to `master` deploys to the live server, so the user merges themselves.
+- `master` is the default branch. Commit messages loosely follow Conventional Commits, without a Co-Authored-By trailer.
+
+## CI/CD and deployment
+
+`.github/workflows/ci-cd.yml`:
+- **`test`** runs on every PR and every push to `master`: `./mvnw -B verify` with `TZ=Asia/Almaty`. Testcontainers uses the runner's Docker.
+- **`image`** runs on pushes to `master` only, on an ARM runner. It copies the tested jar into `deploy/Dockerfile` (runtime only, no Maven) and pushes `ghcr.io/nurial911/backend-biletflow:<sha>` and `:latest` for `linux/arm64`. The VM is an Oracle Ampere A1 (aarch64).
+- **`deploy`** connects over SSH (secrets `VM_HOST`, `VM_USER`, `VM_SSH_KEY`, `VM_KNOWN_HOSTS`), copies `deploy/deploy.sh` to `~/app` and runs it with the SHA. The script:
+  1. runs `pg_dump` into `~/app/backups` (keeps 10);
+  2. saves the old `TAG` in `~/app/.env`, writes the new one, then `docker compose pull && up -d`;
+  3. polls `http://localhost:8080/actuator/health` for 90 s;
+  4. if that fails, restores the old `TAG`, restarts and fails the job;
+  5. if it succeeds, runs `docker image prune -f` and removes old SHA images, keeping the previous one.
+
+On the VM, `~/app` holds:
+- `docker-compose.yml` (from `deploy/`). It sets project `name: biletflow`, so it keeps the old stack's volumes. Never `down -v`.
+- `Caddyfile`.
+- `.env` (`TAG`, `DOMAIN`; no secrets).
+- `app.env`: all app secrets, loaded with `env_file`, never in git (`deploy/app.env.example` lists the names).
+
+The root `Dockerfile` and `docker-compose.yml` are for local development only. A rollback restores the app, not the database: keep migrations additive (old app versions ignore new columns; Flyway ignores "future" migrations).
+
 ## Commands
 
 ```bash
@@ -51,7 +77,7 @@ For a local email demo set `COMPOSE_PROFILES=mail` and `MAIL_ENABLED=true`, then
 - `@Enumerated(STRING)` columns have a CHECK constraint `<table>_<column>_check` listing the allowed values (V1 got them from Hibernate). A new enum value needs a migration that drops and re-adds it (see `V2__refunds.sql`), or inserts fail. `AuditLog.action` and `Notification.type` are plain strings on purpose and need no migration.
 
 **YAML nesting matters:** `jwt` lives under `spring:` (read by `JwtConfig` as `spring.jwt.*`), while `app`, `server` and
-`springdoc` must stay at the top level (`app.seed.enabled`, `app.cors.allowed-origins` are read by `DataSeeder` / `SecurityConfig`).
+`springdoc`, `management` must stay at the top level (`app.seed.enabled`, `app.cors.allowed-origins` are read by `DataSeeder` / `SecurityConfig`).
 Indenting them under `spring:` silently disables `SEED_DATA` and `CORS_ALLOWED_ORIGINS`.
 
 ## Architecture
