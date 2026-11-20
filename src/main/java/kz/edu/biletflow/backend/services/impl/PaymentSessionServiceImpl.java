@@ -184,42 +184,54 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
         }
     }
 
+    private enum CaptureDecision {CAPTURE, RELEASE, NOTHING}
+
     private void capture(Long sessionId, Transaction transaction) {
-        Boolean accepted = transactionTemplate.execute(status -> acceptForCapture(sessionId, transaction));
-        if (Boolean.TRUE.equals(accepted)) {
+        CaptureDecision decision = transactionTemplate.execute(status -> acceptForCapture(sessionId, transaction));
+        if (decision == CaptureDecision.CAPTURE) {
             halykClient.charge(transaction.id());
             finish(sessionId, transaction);
-        } else {
-            release(sessionId, transaction);
+        } else if (decision == CaptureDecision.RELEASE) {
+            releaseDue(sessionId);
         }
+        // NOTHING: a concurrent request (callback or scheduler) already paid or released this session. This request's
+        // snapshot of the bank was taken before that, so acting on it could cancel money that was just captured.
     }
 
-    private boolean acceptForCapture(Long sessionId, Transaction transaction) {
+    private CaptureDecision acceptForCapture(Long sessionId, Transaction transaction) {
         Order order = lockOrderOf(sessionId);
         PaymentSession session = sessionRepository.findById(sessionId).orElseThrow();
         if (session.getStatus() == PaymentSessionStatus.CAPTURING) {
-            return true;
+            return CaptureDecision.CAPTURE; // an earlier attempt stopped between taking the session and charging
+        }
+        if (session.getStatus() == PaymentSessionStatus.RELEASE_DUE) {
+            return CaptureDecision.RELEASE;
         }
         if (session.getStatus() != PaymentSessionStatus.OPEN) {
-            return false;
+            return CaptureDecision.NOTHING;
         }
         String problem = whyNotAcceptable(order, transaction);
         if (problem != null) {
             markForRelease(session, order, transaction, problem);
-            return false;
+            return CaptureDecision.RELEASE;
         }
         session.setStatus(PaymentSessionStatus.CAPTURING);
         session.setTransactionId(transaction.id());
-        return true;
+        return CaptureDecision.CAPTURE;
     }
 
     private void finish(Long sessionId, Transaction transaction) {
         transactionTemplate.executeWithoutResult(status -> completeOrRelease(sessionId, transaction));
-        PaymentSession session = sessionRepository.findById(sessionId).orElseThrow();
-        if (session.getStatus() == PaymentSessionStatus.RELEASE_DUE) {
-            // Status is re-read because the snapshot may still say the money is only held.
-            halykClient.findTransaction(session.getInvoiceId()).ifPresent(latest -> release(sessionId, latest));
+        if (sessionRepository.findById(sessionId).orElseThrow().getStatus() == PaymentSessionStatus.RELEASE_DUE) {
+            releaseDue(sessionId);
         }
+    }
+
+    // Asks the bank for the current status first: the snapshot a request started with may say the money is only
+    // held when it has been captured since (then it is refunded, not cancelled).
+    private void releaseDue(Long sessionId) {
+        PaymentSession session = sessionRepository.findById(sessionId).orElseThrow();
+        halykClient.findTransaction(session.getInvoiceId()).ifPresent(latest -> release(sessionId, latest));
     }
 
     private void completeOrRelease(Long sessionId, Transaction transaction) {
