@@ -31,6 +31,11 @@ public class Venue {
     @Column(name = "capacity")
     private Integer capacity;
 
+    // Key of a predefined seat map (resources/seating/<key>.json); null = no seat map, general admission only.
+    // Events copy the layout when they switch to assigned seating, so changing it never affects them.
+    @Column(name = "seating_layout", length = 50)
+    private String seatingLayout;
+
     @OneToMany(mappedBy = "venue")
     private List<Event> events = new ArrayList<>();
 }

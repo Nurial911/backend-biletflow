@@ -55,4 +55,18 @@ public class Ticket {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false, foreignKey = @ForeignKey(name = "fk_tickets_owner"))
     private User owner;
+
+    // Copied from the order item: the seat (assigned seating) or the standing section; all null for general admission.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_seat_id", foreignKey = @ForeignKey(name = "fk_tickets_event_seat"))
+    private EventSeat eventSeat;
+
+    @Column(name = "section_name", length = 100)
+    private String sectionName;
+
+    @Column(name = "row_label", length = 10)
+    private String rowLabel;
+
+    @Column(name = "seat_number")
+    private Integer seatNumber;
 }

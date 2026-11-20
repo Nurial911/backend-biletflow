@@ -9,6 +9,8 @@ import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.PaymentDeclinedException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.exception.SeatUnavailableException;
+import kz.edu.biletflow.backend.mappers.SeatLabels;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.*;
 import kz.edu.biletflow.backend.services.AuditService;
@@ -26,10 +28,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +53,8 @@ public class OrderServiceImpl implements OrderService {
     private final PromoCampaignService promoCampaignService;
     private final NotificationService notificationService;
     private final OrderFulfillment fulfillment;
+    private final EventSeatRepository seatRepository;
+    private final EventSectionRepository sectionRepository;
 
     @Value("${app.orders.hold-minutes:15}")
     private int holdMinutes;
@@ -60,7 +68,6 @@ public class OrderServiceImpl implements OrderService {
         Event event = getPurchasableEvent(request.getEventId(), userId, isPlatformAdmin);
         LocalDateTime now = LocalDateTime.now();
         validateRegistrationWindow(event, now);
-        rejectRepeatedTicketTypes(request);
 
         User buyer = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
@@ -76,25 +83,11 @@ public class OrderServiceImpl implements OrderService {
                 ? promoCampaignService.getRedeemableForUpdate(event.getId(), request.getPromoCode(), now)
                 : null;
 
-        // Lock ticket types in id order so two concurrent orders can't deadlock each other.
-        List<OrderItemRequest> sortedItems = request.getItems().stream()
-                .sorted(Comparator.comparing(OrderItemRequest::getTicketTypeId))
-                .toList();
-
+        // Locks the ticket types, then the seats, each in id order, so two concurrent orders can't deadlock.
         BigDecimal total = BigDecimal.ZERO;
-        for (OrderItemRequest itemRequest : sortedItems) {
-            TicketType ticketType = ticketTypeRepository.findByIdForUpdate(itemRequest.getTicketTypeId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Ticket type not found with id: " + itemRequest.getTicketTypeId()));
-            validateTicketTypeForPurchase(ticketType, event, itemRequest.getQuantity(), now);
-
-            OrderItem item = new OrderItem();
-            item.setTicketType(ticketType);
-            item.setQuantity(itemRequest.getQuantity());
-            item.setUnitPrice(ticketType.getPrice());
+        for (OrderItem item : buildItems(event, request, now, true)) {
             order.addItem(item);
-
-            total = total.add(ticketType.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity())));
+            total = total.add(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
         }
         if (campaign != null) {
             BigDecimal discount = promoCampaignService.calculateDiscount(campaign, order.getItems());
@@ -123,23 +116,11 @@ public class OrderServiceImpl implements OrderService {
         Event event = getPurchasableEvent(request.getEventId(), userId, isPlatformAdmin);
         LocalDateTime now = LocalDateTime.now();
         validateRegistrationWindow(event, now);
-        rejectRepeatedTicketTypes(request);
 
-        List<OrderItem> items = new ArrayList<>();
-        BigDecimal subtotal = BigDecimal.ZERO;
-        for (OrderItemRequest itemRequest : request.getItems()) {
-            TicketType ticketType = ticketTypeRepository.findById(itemRequest.getTicketTypeId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Ticket type not found with id: " + itemRequest.getTicketTypeId()));
-            validateTicketTypeForPurchase(ticketType, event, itemRequest.getQuantity(), now);
-
-            OrderItem item = new OrderItem();
-            item.setTicketType(ticketType);
-            item.setQuantity(itemRequest.getQuantity());
-            item.setUnitPrice(ticketType.getPrice());
-            items.add(item);
-            subtotal = subtotal.add(ticketType.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity())));
-        }
+        List<OrderItem> items = buildItems(event, request, now, false);
+        BigDecimal subtotal = items.stream()
+                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         OrderQuoteResponse quote = new OrderQuoteResponse();
         BigDecimal discount = BigDecimal.ZERO;
@@ -258,9 +239,139 @@ public class OrderServiceImpl implements OrderService {
         return buyer.getEmail();
     }
 
-    private void rejectRepeatedTicketTypes(CreateOrderRequest request) {
+    // The order's items, validated: one per ticket type for quantities, one per seat (quantity 1) for seats.
+    // With lock, the ticket types are row-locked in id order and then the seats in id order (SeatingServiceImpl
+    // takes the same locks in the same order), and the seats are checked again once locked.
+    private List<OrderItem> buildItems(Event event, CreateOrderRequest request, LocalDateTime now, boolean lock) {
+        List<OrderItemRequest> itemRequests = request.getItems() != null ? request.getItems() : List.of();
+        List<Long> seatIds = request.getSeatIds() != null ? request.getSeatIds() : List.of();
+        if (itemRequests.isEmpty() && seatIds.isEmpty()) {
+            throw new BusinessRuleViolationException("Order must contain at least one item");
+        }
+        rejectRepeatedTicketTypes(itemRequests);
+        boolean assigned = event.getSeatingMode() == SeatingMode.ASSIGNED;
+        if (!seatIds.isEmpty() && !assigned) {
+            throw new BusinessRuleViolationException("This event has general admission: order ticket types, not seats");
+        }
+        if (new HashSet<>(seatIds).size() != seatIds.size()) {
+            throw new BusinessRuleViolationException("A seat is listed more than once");
+        }
+
+        List<EventSeat> seats = new ArrayList<>(seatIds.isEmpty() ? List.of() : seatRepository.findAllForEvent(event.getId(), seatIds));
+        if (seats.size() != seatIds.size()) {
+            Set<Long> found = seats.stream().map(EventSeat::getId).collect(Collectors.toSet());
+            Long missing = seatIds.stream().filter(id -> !found.contains(id)).findFirst().orElseThrow();
+            throw new ResourceNotFoundException("Seat not found with id: " + missing);
+        }
+        seats.sort(Comparator.comparing(EventSeat::getId));
+
+        // Tickets per ticket type: the requested quantities plus one per seat of a section on sale.
+        Map<Long, Integer> quantities = new TreeMap<>();
+        itemRequests.forEach(r -> quantities.merge(r.getTicketTypeId(), r.getQuantity(), Integer::sum));
+        for (EventSeat seat : seats) {
+            TicketType type = seat.getSection().getTicketType();
+            if (type != null) {
+                quantities.merge(type.getId(), 1, Integer::sum);
+            }
+        }
+
+        Map<Long, TicketType> ticketTypes = new HashMap<>();
+        for (Long typeId : quantities.keySet()) { // TreeMap: id order
+            ticketTypes.put(typeId, (lock ? ticketTypeRepository.findByIdForUpdate(typeId) : ticketTypeRepository.findById(typeId))
+                    .orElseThrow(() -> new ResourceNotFoundException("Ticket type not found with id: " + typeId)));
+        }
+
+        // With assigned seating, a ticket type ordered by count must sell a standing section.
+        Map<Long, EventSection> standingByType = new HashMap<>();
+        if (assigned && !itemRequests.isEmpty()) {
+            Map<Long, List<EventSection>> sectionsByType = sectionRepository.findAllByEventIdOrderBySortOrderAsc(event.getId()).stream()
+                    .filter(s -> s.getTicketType() != null)
+                    .collect(Collectors.groupingBy(s -> s.getTicketType().getId()));
+            for (OrderItemRequest itemRequest : itemRequests) {
+                TicketType ticketType = ticketTypes.get(itemRequest.getTicketTypeId());
+                List<EventSection> sections = sectionsByType.getOrDefault(ticketType.getId(), List.of());
+                EventSection standing = sections.stream().filter(s -> s.getKind() == SectionKind.STANDING).findFirst().orElse(null);
+                if (standing == null) {
+                    throw new BusinessRuleViolationException(sections.isEmpty()
+                            ? "'" + ticketType.getName() + "' is not on the seat map"
+                            : "Pick seats on the seat map for '" + ticketType.getName() + "'");
+                }
+                standingByType.put(ticketType.getId(), standing);
+            }
+        }
+        if (!seats.isEmpty()) {
+            if (lock) {
+                seatRepository.lockAll(seatIds);
+            }
+            ensureSeatsAvailable(seats, now);
+        }
+        for (Map.Entry<Long, Integer> entry : quantities.entrySet()) {
+            validateTicketTypeForPurchase(ticketTypes.get(entry.getKey()), event, entry.getValue(), now);
+        }
+
+        List<OrderItem> items = new ArrayList<>();
+        for (OrderItemRequest itemRequest : itemRequests.stream().sorted(Comparator.comparing(OrderItemRequest::getTicketTypeId)).toList()) {
+            TicketType ticketType = ticketTypes.get(itemRequest.getTicketTypeId());
+            OrderItem item = newItem(ticketType, itemRequest.getQuantity());
+            EventSection standing = standingByType.get(ticketType.getId());
+            if (standing != null) {
+                item.setEventSection(standing);
+                item.setSectionName(standing.getName());
+            }
+            items.add(item);
+        }
+        for (EventSeat seat : seats) {
+            EventSection section = seat.getSection();
+            OrderItem item = newItem(ticketTypes.get(section.getTicketType().getId()), 1);
+            item.setEventSection(section);
+            item.setEventSeat(seat);
+            item.setSectionName(section.getName());
+            item.setRowLabel(seat.getRowLabel());
+            item.setSeatNumber(seat.getSeatNumber());
+            items.add(item);
+        }
+        return items;
+    }
+
+    // Read from the database after the seat locks: a seat must still be on sale, at the ticket type this
+    // order uses, and not in another paid or unexpired order. Otherwise 409, and the client refreshes the map.
+    private void ensureSeatsAvailable(List<EventSeat> seats, LocalDateTime now) {
+        List<Long> ids = seats.stream().map(EventSeat::getId).toList();
+        Map<Long, Object[]> states = new HashMap<>();
+        for (Object[] row : seatRepository.findStates(ids)) {
+            states.put((Long) row[0], row);
+        }
+        Set<Long> claimed = orderItemRepository.findSeatClaims(ids, OrderStatus.PAID, OrderStatus.PENDING, now).stream()
+                .map(row -> (Long) row[0])
+                .collect(Collectors.toSet());
+        List<String> unavailable = new ArrayList<>();
+        for (EventSeat seat : seats) {
+            Object[] state = states.get(seat.getId());
+            TicketType readType = seat.getSection().getTicketType();
+            boolean onSale = state != null && !Boolean.TRUE.equals(state[1]) && state[2] != null
+                    && !Boolean.TRUE.equals(state[3])
+                    && readType != null && readType.getId().equals(state[2]);
+            if (!onSale || claimed.contains(seat.getId())) {
+                unavailable.add(SeatLabels.describe(seat.getSection().getName(), seat.getRowLabel(), seat.getSeatNumber()));
+            }
+        }
+        if (!unavailable.isEmpty()) {
+            throw new SeatUnavailableException((unavailable.size() == 1 ? "This seat is" : "These seats are")
+                    + " no longer available: " + String.join("; ", unavailable) + ". Please pick other seats.");
+        }
+    }
+
+    private static OrderItem newItem(TicketType ticketType, int quantity) {
+        OrderItem item = new OrderItem();
+        item.setTicketType(ticketType);
+        item.setQuantity(quantity);
+        item.setUnitPrice(ticketType.getPrice());
+        return item;
+    }
+
+    private void rejectRepeatedTicketTypes(List<OrderItemRequest> items) {
         Set<Long> seen = new HashSet<>();
-        for (OrderItemRequest item : request.getItems()) {
+        for (OrderItemRequest item : items) {
             if (!seen.add(item.getTicketTypeId())) {
                 throw new BusinessRuleViolationException("Ticket type " + item.getTicketTypeId() + " is listed more than once");
             }

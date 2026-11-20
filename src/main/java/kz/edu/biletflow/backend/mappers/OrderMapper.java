@@ -29,6 +29,8 @@ public interface OrderMapper {
 
     @Mapping(target = "ticketTypeId", source = "ticketType.id")
     @Mapping(target = "ticketTypeName", source = "ticketType.name")
+    @Mapping(target = "seatId", source = "eventSeat.id")
+    @Mapping(target = "seatLabel", expression = "java(kz.edu.biletflow.backend.mappers.SeatLabels.describe(item.getSectionName(), item.getRowLabel(), item.getSeatNumber()))")
     OrderItemResponse toDto(OrderItem item);
 
     PaymentResponse toDto(Payment payment);

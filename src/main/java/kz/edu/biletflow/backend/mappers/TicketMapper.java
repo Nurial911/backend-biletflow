@@ -13,5 +13,7 @@ public interface TicketMapper {
     @Mapping(target = "ticketTypeId", source = "ticketType.id")
     @Mapping(target = "ticketTypeName", source = "ticketType.name")
     @Mapping(target = "attendeeEmail", source = "owner.email")
+    @Mapping(target = "seatId", source = "eventSeat.id")
+    @Mapping(target = "seatLabel", expression = "java(kz.edu.biletflow.backend.mappers.SeatLabels.describe(ticket.getSectionName(), ticket.getRowLabel(), ticket.getSeatNumber()))")
     TicketResponse toDto(Ticket ticket);
 }

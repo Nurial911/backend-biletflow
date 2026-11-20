@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.configs;
 
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.repositories.*;
+import kz.edu.biletflow.backend.services.SeatingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -41,6 +42,8 @@ public class DataSeeder implements ApplicationRunner {
     private final PaidSalesActivationRepository paidSalesActivationRepository;
     private final PromoCampaignRepository promoCampaignRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EventSectionRepository eventSectionRepository;
+    private final SeatingService seatingService;
 
     @Override
     @Transactional
@@ -62,7 +65,9 @@ public class DataSeeder implements ApplicationRunner {
         createProfile(org2, "Nur-Sultan Music Productions, +7 700 000 00 02", false);
 
         // ---------- venues ----------
-        Venue hall = venue("Demo Concert Hall", "Demo street 1, Astana", 400);
+        Venue hall = venue("Demo Concert Hall", "Demo street 1, Astana", 488);
+        hall.setSeatingLayout("concert-hall"); // its events still use general admission until they switch
+        venueRepository.save(hall);
         Venue arena = venue("Demo Arena", "Demo avenue 25, Astana", 1500);
         Venue auditorium = venue("Demo University Auditorium", "Demo campus, Astana", 200);
 
@@ -90,6 +95,31 @@ public class DataSeeder implements ApplicationRunner {
         ticketTypeRepository.save(earlyBird);
         activatePaidSales(concert);
         promoCampaign(concert, "Spring newsletter", "JAZZ2026", PromoDiscountType.PERCENT, "20", 50);
+
+        // Assigned seating (SRS 4.3.1): the stands are sold by seat, the field has no seats and is sold by count.
+        Venue stadium = venue("Demo Stadium", "Demo stadium road 3, Astana", 16000);
+        stadium.setSeatingLayout("arena");
+        venueRepository.save(stadium);
+        Event derby = event(org1, stadium, "Astana Derby",
+                "Football under the lights. Pick your seat in the stands, or stand on the fan field.", "Sport",
+                now.plusDays(28).withHour(18).withMinute(0), 3,
+                16000, VisibilityStatus.PUBLIC, EventStatus.PUBLISHED);
+        seatingService.setSeatingMode(org1.getId(), derby.getId(), SeatingMode.ASSIGNED);
+        TicketType fanField = ticket(derby, "Fan field", "Standing on the field, no seats", "6000", 0,
+                now.minusDays(1), derby.getStartTime().minusHours(1), 6);
+        TicketType centralStands = ticket(derby, "Central stands", "North and south stands, sector 2", "15000", 0,
+                now.minusDays(1), derby.getStartTime().minusHours(1), 6);
+        TicketType stands = ticket(derby, "Stands", "Every other sector", "9000", 0,
+                now.minusDays(1), derby.getStartTime().minusHours(1), 6);
+        for (EventSection section : eventSectionRepository.findAllByEventIdOrderBySortOrderAsc(derby.getId())) {
+            TicketType price = switch (section.getSectionKey()) {
+                case "FIELD" -> fanField;
+                case "N2", "S2" -> centralStands;
+                default -> stands;
+            };
+            seatingService.assignSection(org1.getId(), derby.getId(), section.getId(), price.getId());
+        }
+        activatePaidSales(derby);
 
         Event draft = event(org1, hall, "Draft: Autumn Hackathon",
                 "Still being planned, not public yet.", "Technology",

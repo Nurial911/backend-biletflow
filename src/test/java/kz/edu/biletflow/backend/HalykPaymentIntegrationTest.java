@@ -15,6 +15,10 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
@@ -125,6 +129,33 @@ class HalykPaymentIntegrationTest extends ApiIntegrationTest {
         assertThat(payments.get(0).get("simulated").asBoolean()).isTrue();
         assertThat(payments.get(0).get("reference").asString()).startsWith("HALYK-");
         assertThat(notificationTypes(buyer)).containsExactly("ORDER_CONFIRMED");
+    }
+
+    // The race behind a flaky CI run: a notification that read "money held" before another one captured it
+    // must not cancel the captured payment once its outdated answer arrives.
+    @Test
+    void aLateNotificationWithAnOutdatedStatusLeavesCapturedMoneyAlone() throws Exception {
+        String invoice = openSession();
+        BANK.authorize(invoice, 5000);
+        String secret = BANK.secretOf(invoice);
+        FakeHalykServer.HeldReply held = BANK.holdNextStatusReply();
+        ExecutorService late = Executors.newSingleThreadExecutor();
+        try {
+            Future<Integer> lateCallback = late.submit(() -> callback(invoice, secret).status());
+            assertThat(held.taken().await(10, TimeUnit.SECONDS)).isTrue(); // it has read "AUTH"
+            callback(invoice, secret).assertStatus(200);                   // another one captures meanwhile
+            assertThat(orderStatus()).isEqualTo("PAID");
+            held.release().countDown();                                    // the late one now acts on "AUTH"
+            assertThat(lateCallback.get(30, TimeUnit.SECONDS)).isEqualTo(200);
+        } finally {
+            late.shutdownNow();
+        }
+
+        assertThat(BANK.statusOf(invoice)).isEqualTo("CHARGE");
+        assertThat(BANK.operationCount("cancel", invoice)).isZero();
+        assertThat(BANK.operationCount("charge", invoice)).isEqualTo(1);
+        assertThat(sessionStatus(invoice)).isEqualTo("PAID");
+        assertThat(tickets(buyer)).hasSize(2);
     }
 
     @Test

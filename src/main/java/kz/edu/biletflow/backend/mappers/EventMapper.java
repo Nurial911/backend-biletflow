@@ -40,6 +40,7 @@ public interface EventMapper {
     @Mapping(target = "suspendedAt", ignore = true)
     @Mapping(target = "suspensionReason", ignore = true)
     @Mapping(target = "paidSalesActive", ignore = true) // changes only through paid-sales activation
+    @Mapping(target = "seatingMode", ignore = true) // changes only through PUT /api/events/{id}/seating
     Event toEntity(CreateEventRequest request);
 
 
@@ -55,6 +56,7 @@ public interface EventMapper {
     @Mapping(target = "suspendedAt", ignore = true)
     @Mapping(target = "suspensionReason", ignore = true)
     @Mapping(target = "paidSalesActive", ignore = true) // changes only through paid-sales activation
+    @Mapping(target = "seatingMode", ignore = true) // changes only through PUT /api/events/{id}/seating
     void updateEvent(UpdateEventRequest request, @MappingTarget Event event);
 
 }

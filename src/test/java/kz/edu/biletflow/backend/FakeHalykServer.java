@@ -12,7 +12,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +31,12 @@ final class FakeHalykServer {
     volatile boolean down;
     volatile boolean refusesCharges;
     volatile boolean refusesRefunds;
+    private final AtomicReference<HeldReply> nextHeldReply = new AtomicReference<>();
+
+    // A status reply read at once but sent only when "release" opens, like a slow network: the caller then
+    // acts on a status that may be out of date by the time it arrives. "taken" opens once the status was read.
+    record HeldReply(CountDownLatch taken, CountDownLatch release) {
+    }
 
     private static final class Transaction {
         final String id = UUID.randomUUID().toString();
@@ -73,6 +82,13 @@ final class FakeHalykServer {
         transactions.put(invoiceId, new Transaction(BigDecimal.valueOf(amount), "REJECT"));
     }
 
+    // Holds back the reply to the next status query.
+    HeldReply holdNextStatusReply() {
+        HeldReply held = new HeldReply(new CountDownLatch(1), new CountDownLatch(1));
+        nextHeldReply.set(held);
+        return held;
+    }
+
     String statusOf(String invoiceId) {
         return transactions.get(invoiceId).status;
     }
@@ -114,10 +130,21 @@ final class FakeHalykServer {
             respond(exchange, 200, "{\"resultCode\":\"102\",\"resultMessage\":\"invoice not found\",\"transaction\":{\"id\":\"\",\"invoiceID\":\"" + invoiceId + "\",\"amount\":0}}");
             return;
         }
-        String resultCode = "REJECT".equals(t.status) ? "101" : "100";
-        respond(exchange, 200, "{\"resultCode\":\"" + resultCode + "\",\"resultMessage\":\"" + t.status + "\",\"transaction\":{"
+        String status = t.status;
+        String resultCode = "REJECT".equals(status) ? "101" : "100";
+        String body = "{\"resultCode\":\"" + resultCode + "\",\"resultMessage\":\"" + status + "\",\"transaction\":{"
                 + "\"id\":\"" + t.id + "\",\"invoiceID\":\"" + invoiceId + "\",\"amount\":" + t.amount + ",\"currency\":\"KZT\","
-                + "\"terminalID\":\"" + TERMINAL + "\",\"reason\":\"Test reason\",\"statusName\":\"" + t.status + "\"}}");
+                + "\"terminalID\":\"" + TERMINAL + "\",\"reason\":\"Test reason\",\"statusName\":\"" + status + "\"}}";
+        HeldReply held = nextHeldReply.getAndSet(null);
+        if (held != null) {
+            held.taken().countDown();
+            try {
+                held.release().await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        respond(exchange, 200, body);
     }
 
     private void operation(HttpExchange exchange) throws IOException {

@@ -34,4 +34,23 @@ public class OrderItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ticket_type_id", nullable = false, foreignKey = @ForeignKey(name = "fk_order_items_ticket_type"))
     private TicketType ticketType;
+
+    // Assigned seating: the section (seated or standing) and, for a seat, the seat itself with quantity 1.
+    // The labels are a snapshot taken at order time.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_section_id", foreignKey = @ForeignKey(name = "fk_order_items_event_section"))
+    private EventSection eventSection;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_seat_id", foreignKey = @ForeignKey(name = "fk_order_items_event_seat"))
+    private EventSeat eventSeat;
+
+    @Column(name = "section_name", length = 100)
+    private String sectionName;
+
+    @Column(name = "row_label", length = 10)
+    private String rowLabel;
+
+    @Column(name = "seat_number")
+    private Integer seatNumber;
 }

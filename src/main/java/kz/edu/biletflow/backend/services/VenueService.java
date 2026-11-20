@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.services;
 
+import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.CreateVenueRequest;
 import kz.edu.biletflow.backend.dtos.VenueResponse;
 import org.springframework.data.domain.Page;
@@ -9,4 +10,6 @@ public interface VenueService {
     VenueResponse createVenue(CreateVenueRequest createVenueRequest);
 
     Page<VenueResponse> getAllVenues(Pageable pageable);
+
+    VenueResponse setSeatingLayout(Long adminId, Long venueId, @Nullable String layoutKey);
 }

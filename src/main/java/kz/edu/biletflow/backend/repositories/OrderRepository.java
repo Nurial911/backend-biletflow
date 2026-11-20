@@ -114,4 +114,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     int updateStatusByUserId(@Param("userId") Long userId,
                              @Param("from") OrderStatus from,
                              @Param("to") OrderStatus to);
+
+    // Any order at all, whatever its status: the seat map can't change once one exists.
+    boolean existsByEventId(Long eventId);
 }

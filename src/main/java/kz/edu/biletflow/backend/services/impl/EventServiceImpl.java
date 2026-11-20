@@ -18,6 +18,7 @@ import kz.edu.biletflow.backend.repositories.VenueRepository;
 import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.EventService;
 import kz.edu.biletflow.backend.services.NotificationService;
+import kz.edu.biletflow.backend.services.SeatingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,6 +49,7 @@ public class EventServiceImpl implements EventService {
     private final PosterStorage posterStorage;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final SeatingService seatingService;
 
     @Transactional
     @Override
@@ -116,6 +118,16 @@ public class EventServiceImpl implements EventService {
         LocalDateTime oldStart = event.getStartTime();
         LocalDateTime oldEnd = event.getEndTime();
         Long oldVenueId = event.getVenue().getId();
+        if (event.getSeatingMode() == SeatingMode.ASSIGNED) {
+            // The seat map comes from the venue and sets the capacity.
+            if (request.getVenueId() != null && !request.getVenueId().equals(oldVenueId)) {
+                throw new BusinessRuleViolationException(
+                        "This event uses the venue's seat map: switch it to general admission before changing the venue");
+            }
+            if (request.getCapacity() != null && !request.getCapacity().equals(oldCapacity)) {
+                throw new BusinessRuleViolationException("With assigned seating the capacity comes from the seat map");
+            }
+        }
         eventMapper.updateEvent(request, event);
 
         if (request.getVenueId() != null){
@@ -248,6 +260,7 @@ public class EventServiceImpl implements EventService {
         }
 
         Event saved = eventRepository.save(copy);
+        seatingService.copySeating(originalEvent, saved);
         audit(organizerId, AuditAction.EVENT_DUPLICATED, saved, "Draft copied from event #" + eventId);
         return eventMapper.toDto(saved);
     }

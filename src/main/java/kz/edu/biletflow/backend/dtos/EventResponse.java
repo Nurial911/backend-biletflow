@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 
 @Data
 public class EventResponse {
+    // GENERAL_ADMISSION or ASSIGNED; with ASSIGNED, GET /api/events/{id}/seat-map has the seats.
+    private kz.edu.biletflow.backend.entities.SeatingMode seatingMode;
     private Long id;
     private String title;
     private String description;
