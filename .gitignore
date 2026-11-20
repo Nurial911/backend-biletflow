@@ -37,3 +37,7 @@ build/
 
 ### Uploaded files (local runs) ###
 uploads/
+
+### Claude Code: personal settings and runtime files (settings.json is shared) ###
+.claude/settings.local.json
+.claude/*.lock

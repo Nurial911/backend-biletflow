@@ -66,6 +66,17 @@ server:
   # Correct http/https links in "Location" headers when running behind a reverse proxy later.
   forward-headers-strategy: framework
 
+# Actuator: only /actuator/health is exposed (public, status only, no details). The deploy script polls it.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  health:
+    mail:
+      # Without a mail server (MAIL_ENABLED=false) the mail check would always report DOWN.
+      enabled: ${MAIL_ENABLED:false}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
