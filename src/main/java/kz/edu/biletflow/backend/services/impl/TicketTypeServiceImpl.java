@@ -7,6 +7,7 @@ import kz.edu.biletflow.backend.entities.AuditAction;
 import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.EventStatus;
 import kz.edu.biletflow.backend.entities.OrderStatus;
+import kz.edu.biletflow.backend.entities.SeatingMode;
 import kz.edu.biletflow.backend.entities.TicketType;
 import kz.edu.biletflow.backend.entities.VisibilityStatus;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
@@ -47,7 +48,15 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         ticketType.setEvent(event);
 
         validateSalesWindow(ticketType.getSalesStart(), ticketType.getSalesEnd(), event);
-        validateCapacity(event, ticketType.getQuantity(), NO_ID);
+        if (event.getSeatingMode() == SeatingMode.ASSIGNED) {
+            // Sells nothing until sections are linked to it on the seat map (PUT /api/events/{id}/seating/sections/{sectionId}).
+            ticketType.setQuantity(0);
+        } else {
+            if (ticketType.getQuantity() == null) {
+                throw new BusinessRuleViolationException("Quantity cannot be null");
+            }
+            validateCapacity(event, ticketType.getQuantity(), NO_ID);
+        }
 
         TicketType savedTicketType = ticketTypeRepository.save(ticketType);
         audit(organizerId, AuditAction.TICKET_TYPE_CREATED, savedTicketType,
@@ -86,6 +95,11 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         Event event = ticketType.getEvent();
         ensureEventEditable(event);
 
+        if (event.getSeatingMode() == SeatingMode.ASSIGNED && request.getQuantity() != null
+                && !request.getQuantity().equals(ticketType.getQuantity())) {
+            throw new BusinessRuleViolationException("With assigned seating the quantity comes from the seat map:"
+                    + " link sections to this ticket type or block seats instead");
+        }
         long sold = countSold(ticketType);
         if (sold > 0 && request.getPrice() != null && request.getPrice().compareTo(ticketType.getPrice()) != 0) {
             throw new BusinessRuleViolationException("Price cannot be changed after tickets have been sold or reserved");

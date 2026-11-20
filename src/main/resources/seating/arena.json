@@ -1,0 +1,35 @@
+{
+  "key": "arena",
+  "name": "Arena with a standing field",
+  "description": "A stadium: seated stands on all four sides, sold by seat, and a field in the middle with no seats, sold by count. Row 1 of every stand is the one nearest the field.",
+  "width": 1840,
+  "height": 1440,
+  "sections": [
+    { "key": "FIELD", "name": "Field (standing)", "kind": "STANDING", "capacity": 6000,
+      "x": 300, "y": 300, "width": 1240, "height": 840 },
+
+    { "key": "N1", "name": "North stand, sector 1", "kind": "SEATED", "x": 300, "y": 20, "rowDirection": "UP",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] },
+    { "key": "N2", "name": "North stand, sector 2", "kind": "SEATED", "x": 720, "y": 20, "rowDirection": "UP",
+      "rows": [ { "labels": "1", "seats": 40, "accessibleSeats": [1, 2, 39, 40] }, { "labels": "2-25", "seats": 40 } ] },
+    { "key": "N3", "name": "North stand, sector 3", "kind": "SEATED", "x": 1140, "y": 20, "rowDirection": "UP",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] },
+
+    { "key": "S1", "name": "South stand, sector 1", "kind": "SEATED", "x": 300, "y": 1170, "rowDirection": "DOWN",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] },
+    { "key": "S2", "name": "South stand, sector 2", "kind": "SEATED", "x": 720, "y": 1170, "rowDirection": "DOWN",
+      "rows": [ { "labels": "1", "seats": 40, "accessibleSeats": [1, 2, 39, 40] }, { "labels": "2-25", "seats": 40 } ] },
+    { "key": "S3", "name": "South stand, sector 3", "kind": "SEATED", "x": 1140, "y": 1170, "rowDirection": "DOWN",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] },
+
+    { "key": "W1", "name": "West stand, sector 1", "kind": "SEATED", "x": 20, "y": 300, "rowDirection": "LEFT",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] },
+    { "key": "W2", "name": "West stand, sector 2", "kind": "SEATED", "x": 20, "y": 740, "rowDirection": "LEFT",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] },
+
+    { "key": "E1", "name": "East stand, sector 1", "kind": "SEATED", "x": 1570, "y": 300, "rowDirection": "RIGHT",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] },
+    { "key": "E2", "name": "East stand, sector 2", "kind": "SEATED", "x": 1570, "y": 740, "rowDirection": "RIGHT",
+      "rows": [ { "labels": "1-25", "seats": 40 } ] }
+  ]
+}

@@ -73,4 +73,49 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                                   @Param("from") LocalDateTime from,
                                   @Param("to") LocalDateTime to,
                                   @Param("typeId") long typeId);
+    // Seats claimed by a PAID order or an unexpired PENDING one: [seatId, order status, buyer id].
+    @Query("""
+        SELECT i.eventSeat.id, o.status, o.user.id FROM OrderItem i JOIN i.order o
+        WHERE i.eventSeat.id IN :seatIds
+          AND (o.status = :paid OR (o.status = :pending AND o.expiresAt > :now))
+        """)
+    List<Object[]> findSeatClaims(@Param("seatIds") Collection<Long> seatIds,
+                                  @Param("paid") OrderStatus paid,
+                                  @Param("pending") OrderStatus pending,
+                                  @Param("now") LocalDateTime now);
+
+    // Same for every seat of one section.
+    @Query("""
+        SELECT i.eventSeat.id, o.status, o.user.id FROM OrderItem i JOIN i.order o
+        WHERE i.eventSection.id = :sectionId AND i.eventSeat IS NOT NULL
+          AND (o.status = :paid OR (o.status = :pending AND o.expiresAt > :now))
+        """)
+    List<Object[]> findSeatClaimsInSection(@Param("sectionId") Long sectionId,
+                                           @Param("paid") OrderStatus paid,
+                                           @Param("pending") OrderStatus pending,
+                                           @Param("now") LocalDateTime now);
+
+    // Per section of an event: [sectionId, sold (PAID qty), held (unexpired PENDING qty)].
+    @Query("""
+        SELECT i.eventSection.id,
+               SUM(CASE WHEN o.status = :paid THEN i.quantity ELSE 0 END),
+               SUM(CASE WHEN o.status = :pending AND o.expiresAt > :now THEN i.quantity ELSE 0 END)
+        FROM OrderItem i JOIN i.order o
+        WHERE o.event.id = :eventId AND i.eventSection IS NOT NULL
+        GROUP BY i.eventSection.id
+        """)
+    List<Object[]> aggregateBySection(@Param("eventId") Long eventId,
+                                      @Param("paid") OrderStatus paid,
+                                      @Param("pending") OrderStatus pending,
+                                      @Param("now") LocalDateTime now);
+
+    @Query("""
+        SELECT COUNT(i) > 0 FROM OrderItem i JOIN i.order o
+        WHERE i.eventSection.id = :sectionId
+          AND (o.status = :paid OR (o.status = :pending AND o.expiresAt > :now))
+        """)
+    boolean existsClaimInSection(@Param("sectionId") Long sectionId,
+                                 @Param("paid") OrderStatus paid,
+                                 @Param("pending") OrderStatus pending,
+                                 @Param("now") LocalDateTime now);
 }

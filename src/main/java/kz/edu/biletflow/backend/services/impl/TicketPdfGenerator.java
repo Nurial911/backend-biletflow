@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.services.impl;
 
+import kz.edu.biletflow.backend.mappers.SeatLabels;
 import com.google.zxing.common.BitMatrix;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
@@ -80,6 +81,10 @@ public class TicketPdfGenerator {
         addRow(details, "Date and time", dateTime(event));
         addRow(details, "Venue", event.getVenue().getName() + "\n" + event.getVenue().getAddress());
         addRow(details, "Ticket type", ticket.getTicketType().getName());
+        String place = SeatLabels.describe(ticket.getSectionName(), ticket.getRowLabel(), ticket.getSeatNumber());
+        if (place != null) {
+            addRow(details, ticket.getRowLabel() != null ? "Seat" : "Section", place);
+        }
         addRow(details, "Attendee", ticket.getAttendeeName() != null
                 ? ticket.getAttendeeName() : ticket.getOwner().getEmail());
         addRow(details, "Ticket ID", ticket.getCode());

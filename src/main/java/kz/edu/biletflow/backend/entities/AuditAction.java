@@ -65,7 +65,14 @@ public enum AuditAction {
     PAYOUT_HELD("PAYOUT"),
     PAYOUT_RELEASED("PAYOUT"),
     PAYOUT_PAID("PAYOUT"),
-    PAYOUT_CANCELLED("PAYOUT");
+    PAYOUT_CANCELLED("PAYOUT"),
+    // Assigned seating (SRS 4.3.1).
+    SEATING_MODE_CHANGED("SEATING"),
+    SEATING_SECTION_ASSIGNED("SEATING"),
+    SEATS_BLOCKED("SEATING"),
+    SEATS_UNBLOCKED("SEATING"),
+    // Platform admin; not tied to one event.
+    VENUE_SEATING_LAYOUT_CHANGED("VENUE");
 
     private final String entityType;
 }

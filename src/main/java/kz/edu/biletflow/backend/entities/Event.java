@@ -80,6 +80,11 @@ public class Event {
     @Column(name = "calendar_sequence", nullable = false)
     private int calendarSequence = 0;
 
+    // Changed only through SeatingService (PUT /api/events/{id}/seating), and only while the event has no orders.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "seating_mode", nullable = false, length = 20)
+    private SeatingMode seatingMode = SeatingMode.GENERAL_ADMISSION;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organizer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_events_organizer"))
     private User organizer;

@@ -8,4 +8,5 @@ public class VenueResponse {
     private String name;
     private String address;
     private Integer capacity;
+    private String seatingLayout; // null = no seat map: general admission only
 }

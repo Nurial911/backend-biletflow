@@ -41,6 +41,33 @@ class SeedDataIntegrationTest extends ApiIntegrationTest {
         assertThat(checklist.get("readyToActivate").asBoolean()).isFalse();
     }
 
+    @Test
+    void seededDerbySellsSeatsInTheStandsAndPlacesOnTheField() {
+        long derby = eventId("Astana Derby");
+        JsonNode map = call(HttpMethod.GET, "/api/events/" + derby + "/seat-map", null, null).assertStatus(200).json();
+        assertThat(map.get("sections")).hasSize(11);
+        JsonNode north2 = null;
+        for (JsonNode section : map.get("sections")) {
+            assertThat(section.get("onSale").asBoolean()).as(section.get("key").asString()).isTrue();
+            if (section.get("key").asString().equals("N2")) {
+                north2 = section;
+            }
+        }
+        assertThat(north2).isNotNull();
+        assertThat(north2.get("price").decimalValue()).isEqualByComparingTo("15000");
+
+        JsonNode seats = call(HttpMethod.GET, "/api/events/" + derby + "/seat-map/sections/" + north2.get("id").asLong(),
+                null, null).assertStatus(200).json().get("seats");
+        long firstSeat = seats.get(0).get("id").asLong();
+        long fanField = jdbcTemplate.queryForObject(
+                "SELECT id FROM ticket_types WHERE event_id = ? AND name = 'Fan field'", Long.class, derby);
+        String attendee = login("attendee@biletflow.kz", DataSeeder.DEMO_PASSWORD);
+        Map<String, Object> body = new HashMap<>(orderBody(derby, fanField, 2));
+        body.put("seatIds", java.util.List.of(firstSeat));
+        JsonNode order = call(HttpMethod.POST, "/api/orders", attendee, body).assertStatus(201).json();
+        assertThat(order.get("totalAmount").decimalValue()).isEqualByComparingTo("27000"); // 15000 + 2 x 6000
+    }
+
     private long eventId(String title) {
         return jdbcTemplate.queryForObject("SELECT id FROM events WHERE title = ?", Long.class, title);
     }

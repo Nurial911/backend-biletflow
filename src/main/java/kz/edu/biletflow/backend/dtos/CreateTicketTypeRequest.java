@@ -18,7 +18,7 @@ public class CreateTicketTypeRequest {
     @Digits(integer = 10, fraction = 2, message = "Price must have at most 2 decimal places")
     private BigDecimal price;
 
-    @NotNull(message = "Quantity cannot be null")
+    // Required for general admission. With assigned seating it is left out: the seat map sets it.
     @Positive(message = "Quantity must be a positive number")
     private Integer quantity;
 
