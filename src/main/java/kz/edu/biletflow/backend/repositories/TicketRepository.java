@@ -68,6 +68,9 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
                                            @Param("minutes") int minutes);
 
 
+    // Whether the user holds any ticket for the event, in any status (calendar files of cancelled events).
+    boolean existsByEventIdAndOwnerId(Long eventId, Long ownerId);
+
     // Everyone holding a ticket in this status, for event-wide notifications.
     @Query("SELECT DISTINCT t.owner.id FROM Ticket t WHERE t.event.id = :eventId AND t.status = :status")
     List<Long> findOwnerIdsByEvent(@Param("eventId") Long eventId, @Param("status") TicketStatus status);

@@ -85,7 +85,8 @@ public class OrderFulfillment {
                         + "\nWhere: " + event.getVenue().getName() + ", " + event.getVenue().getAddress()
                         + "\nTickets: " + tickets
                         + "\nTotal: " + order.getTotalAmount() + " KZT"
-                        + "\n\nYour tickets are in your BiletFlow account, and the emailed copy of this message has them attached as a PDF."
+                        + "\n\nYour tickets are in your BiletFlow account, and the emailed copy of this message has them attached as a PDF,"
+                        + " together with a calendar file (.ics) for the event."
                         + paymentNote,
                 order.getId());
     }

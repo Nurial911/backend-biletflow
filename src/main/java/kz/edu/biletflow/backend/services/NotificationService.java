@@ -15,6 +15,9 @@ public interface NotificationService {
 
     void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body);
 
+    // About a change to an event: the email carries the event's current calendar file (.ics).
+    void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body, Long eventId);
+
     Page<NotificationResponse> getMyNotifications(Long userId, Pageable pageable);
 
     long countUnread(Long userId);

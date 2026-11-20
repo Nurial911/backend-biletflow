@@ -131,6 +131,8 @@ public class EventServiceImpl implements EventService {
                 event.getStartTime(),
                 event.getEndTime());
 
+        // A newer calendar file replaces the entry attendees added earlier.
+        event.setCalendarSequence(event.getCalendarSequence() + 1);
         Event saved = eventRepository.save(event);
         String capacityChange = Objects.equals(oldCapacity, saved.getCapacity())
                 ? "" : ", capacity " + oldCapacity + " -> " + saved.getCapacity();
@@ -142,7 +144,10 @@ public class EventServiceImpl implements EventService {
                     "The time or place of \"" + saved.getTitle() + "\" has changed. It now takes place on "
                             + saved.getStartTime().format(NOTIFICATION_DATE_TIME) + " (Almaty time) at "
                             + saved.getVenue().getName() + ", " + saved.getVenue().getAddress()
-                            + ". Your ticket stays valid.");
+                            + ". Your ticket stays valid."
+                            + " The emailed copy of this message has the updated calendar file (.ics) attached:"
+                            + " open it to update the entry in your calendar.",
+                    eventId);
         }
         return eventMapper.toDto(saved);
     }
@@ -192,13 +197,17 @@ public class EventServiceImpl implements EventService {
         }
 
         event.setStatus(EventStatus.CANCELLED);
+        event.setCalendarSequence(event.getCalendarSequence() + 1);
         Event saved = eventRepository.save(event);
 
         // Before the update below: afterwards nobody holds a VALID ticket any more.
         notificationService.notifyUsers(ticketRepository.findOwnerIdsByEvent(eventId, TicketStatus.VALID),
                 NotificationType.EVENT_CANCELLED, saved.getTitle() + " has been cancelled",
                 "The organizer cancelled \"" + saved.getTitle() + "\", so your ticket is no longer valid."
-                        + " You can contact the organizer by opening a support case from your order.");
+                        + " You can contact the organizer by opening a support case from your order."
+                        + " The emailed copy of this message has a calendar file (.ics) attached that marks the event"
+                        + " as cancelled in your calendar.",
+                eventId);
 
         // Cancelled tickets must not admit anyone; unpaid orders can no longer be paid.
         // PAID orders keep their status until refunds exist (they need a refund, not a silent change).

@@ -5,6 +5,7 @@ import kz.edu.biletflow.backend.dtos.NotificationResponse;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.NotificationMapper;
+import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.NotificationRepository;
 import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +39,8 @@ public class NotificationServiceImpl implements NotificationService {
     private final UserRepository userRepository;
     private final TicketRepository ticketRepository;
     private final TicketPdfGenerator ticketPdfGenerator;
+    private final EventRepository eventRepository;
+    private final EventCalendar eventCalendar;
     private final MailGateway mailGateway;
     private final NotificationMapper notificationMapper;
 
@@ -49,8 +53,23 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body) {
+        saveForAll(userIds, type, title, body, null);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body, Long eventId) {
+        saveForAll(userIds, type, title, body, eventId);
+    }
+
+    private void saveForAll(Collection<Long> userIds, NotificationType type, String title, String body,
+                            @Nullable Long eventId) {
         notificationRepository.saveAll(userRepository.findAllById(Set.copyOf(userIds)).stream()
-                .map(user -> build(user, type, title, body, null))
+                .map(user -> {
+                    Notification notification = build(user, type, title, body, null);
+                    notification.setEventId(eventId);
+                    return notification;
+                })
                 .toList());
     }
 
@@ -100,7 +119,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
         try {
             mailGateway.send(new OutgoingMail(notification.getRecipientEmail(), notification.getTitle(),
-                    notification.getBody(), ticketsAttachment(notification)));
+                    notification.getBody(), attachments(notification)));
             notification.setEmailStatus(EmailDeliveryStatus.SENT);
         } catch (Exception e) {
             recordFailure(notification, e);
@@ -120,16 +139,28 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    @Nullable
-    private OutgoingMail.Attachment ticketsAttachment(Notification notification) {
-        if (notification.getOrderId() == null) {
-            return null;
+    // Built when the email is sent, from the current state: tickets of an order (ORDER_CONFIRMED) as a PDF,
+    // and the event's calendar file for a confirmation, a change or a cancellation (SRS 4.11).
+    private List<OutgoingMail.Attachment> attachments(Notification notification) {
+        List<OutgoingMail.Attachment> attachments = new ArrayList<>();
+        Long calendarEventId = notification.getEventId();
+        if (notification.getOrderId() != null) {
+            // Only tickets that still admit (or did): an email queued before a cancellation or refund leaves them out.
+            List<Ticket> tickets = ticketRepository.findAllByOrderIdAndStatusInOrderByIdAsc(
+                    notification.getOrderId(), List.of(TicketStatus.VALID, TicketStatus.USED));
+            if (!tickets.isEmpty()) {
+                attachments.add(new OutgoingMail.Attachment("tickets-order-" + notification.getOrderId() + ".pdf",
+                        "application/pdf", ticketPdfGenerator.generate(tickets)));
+                if (NotificationType.ORDER_CONFIRMED.name().equals(notification.getType())) {
+                    calendarEventId = tickets.getFirst().getEvent().getId();
+                }
+            }
         }
-        // Only tickets that still admit (or did): an email queued before a cancellation or refund leaves them out.
-        List<Ticket> tickets = ticketRepository.findAllByOrderIdAndStatusInOrderByIdAsc(
-                notification.getOrderId(), List.of(TicketStatus.VALID, TicketStatus.USED));
-        return tickets.isEmpty() ? null : new OutgoingMail.Attachment(
-                "tickets-order-" + notification.getOrderId() + ".pdf", ticketPdfGenerator.generate(tickets));
+        if (calendarEventId != null) {
+            eventRepository.findById(calendarEventId).ifPresent(event -> attachments.add(new OutgoingMail.Attachment(
+                    eventCalendar.fileName(event), EventCalendar.CONTENT_TYPE, eventCalendar.ics(event))));
+        }
+        return attachments;
     }
 
     private Notification build(User user, NotificationType type, String title, String body, @Nullable Long orderId) {

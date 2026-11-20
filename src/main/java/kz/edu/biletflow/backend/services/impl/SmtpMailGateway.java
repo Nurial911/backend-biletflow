@@ -26,15 +26,15 @@ public class SmtpMailGateway implements MailGateway {
     public void send(OutgoingMail mail) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, mail.attachment() != null, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(message, !mail.attachments().isEmpty(), "UTF-8");
             helper.setFrom(from);
             helper.setTo(mail.to());
             // Subjects can contain event titles, which organizers control: no header injection.
             helper.setSubject(mail.subject().replaceAll("[\\r\\n]+", " "));
             helper.setText(mail.text(), false);
-            if (mail.attachment() != null) {
-                helper.addAttachment(mail.attachment().filename(),
-                        new ByteArrayResource(mail.attachment().content()), "application/pdf");
+            for (OutgoingMail.Attachment attachment : mail.attachments()) {
+                helper.addAttachment(attachment.filename(),
+                        new ByteArrayResource(attachment.content()), attachment.contentType());
             }
             mailSender.send(message);
         } catch (MessagingException e) {

@@ -107,12 +107,13 @@ class TicketDeliveryIntegrationTest extends ApiIntegrationTest {
         deliverQueuedEmails();
 
         OutgoingMail mail = onlyMailWithSubject(email, "Your tickets for Test event");
-        assertThat(mail.attachment()).isNotNull();
-        try (PDDocument pdf = Loader.loadPDF(mail.attachment().content())) {
+        byte[] pdfBytes = mail.attachments().stream().filter(a -> a.contentType().equals("application/pdf"))
+                .findFirst().orElseThrow().content();
+        try (PDDocument pdf = Loader.loadPDF(pdfBytes)) {
             assertThat(pdf.getNumberOfPages()).isEqualTo(2);
         }
         for (int page = 0; page < 2; page++) {
-            assertThat(decodeQr(printedQr(mail.attachment().content(), page)))
+            assertThat(decodeQr(printedQr(pdfBytes, page)))
                     .isEqualTo(tickets(attendee).get(page).get("code").asString());
         }
         assertThat(mail.text()).doesNotContain("demonstration payment");

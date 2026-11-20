@@ -47,6 +47,10 @@ public class Notification {
     @Column(name = "order_id", updatable = false)
     private Long orderId;
 
+    // Set on EVENT_UPDATED and EVENT_CANCELLED: the email then carries the event's current .ics file.
+    @Column(name = "event_id", updatable = false)
+    private Long eventId;
+
     @Column(name = "read_at")
     private LocalDateTime readAt;
 
