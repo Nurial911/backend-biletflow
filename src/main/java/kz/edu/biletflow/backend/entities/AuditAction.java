@@ -51,7 +51,14 @@ public enum AuditAction {
     SUPPORT_CASE_ESCALATED("SUPPORT_CASE"),
 
     USER_ROLE_CHANGED("USER"),
-    USER_DELETED("USER");
+    USER_DELETED("USER"),
+    USER_SUSPENDED("USER"),
+    USER_UNSUSPENDED("USER"),
+
+    // Recorded without an event id on purpose: organizers don't see reports about their events.
+    EVENT_REPORT_REVIEWED("EVENT_REPORT"),
+
+    PLATFORM_SETTINGS_UPDATED("PLATFORM_SETTINGS");
 
     private final String entityType;
 }

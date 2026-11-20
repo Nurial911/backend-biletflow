@@ -11,5 +11,8 @@ public class UserResponse {
     private String fullName;
     private String role;
     private boolean verificationStatus;
+    private boolean suspended;
+    private LocalDateTime suspendedAt;
+    private String suspensionReason;
     private LocalDateTime createdAt;
 }

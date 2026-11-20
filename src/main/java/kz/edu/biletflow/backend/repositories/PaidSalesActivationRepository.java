@@ -11,6 +11,8 @@ import java.util.Optional;
 
 @Repository
 public interface PaidSalesActivationRepository extends JpaRepository<PaidSalesActivation, Long> {
+    long countByStatus(PaidSalesStatus status);
+
     Optional<PaidSalesActivation> findByEventId(Long eventId);
 
     Page<PaidSalesActivation> findAllByStatus(PaidSalesStatus status, Pageable pageable);

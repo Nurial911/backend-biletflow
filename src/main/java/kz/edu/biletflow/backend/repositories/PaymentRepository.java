@@ -1,5 +1,11 @@
 package kz.edu.biletflow.backend.repositories;
 
+import java.time.LocalDateTime;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import kz.edu.biletflow.backend.entities.OrderStatus;
 import kz.edu.biletflow.backend.entities.Payment;
 import kz.edu.biletflow.backend.entities.PaymentStatus;
@@ -13,7 +19,22 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PaymentRepository extends JpaRepository<Payment, Long> {
+public interface PaymentRepository extends JpaRepository<Payment, Long>, JpaSpecificationExecutor<Payment> {
+    // Admin search: loads each payment's order, event and buyer with the page instead of one query per row.
+    @Override
+    @EntityGraph(attributePaths = {"order", "order.event", "order.user"})
+    Page<Payment> findAll(Specification<Payment> spec, Pageable pageable);
+
+    long countByStatusAndCreatedAtGreaterThanEqual(PaymentStatus status, LocalDateTime since);
+
+    // Admin payments report: every attempt in [from, to), with its order, event and buyer.
+    @Query("""
+            SELECT p FROM Payment p JOIN FETCH p.order o JOIN FETCH o.event JOIN FETCH o.user
+            WHERE p.createdAt >= :from AND p.createdAt < :to
+            ORDER BY p.createdAt, p.id
+            """)
+    List<Payment> findAllCreatedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
     List<Payment> findAllByOrderIdOrderByIdAsc(Long orderId);
 
     Optional<Payment> findFirstByOrderIdAndStatusOrderByIdDesc(Long orderId, PaymentStatus status);

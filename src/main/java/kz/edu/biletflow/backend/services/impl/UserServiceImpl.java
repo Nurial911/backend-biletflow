@@ -1,26 +1,37 @@
 package kz.edu.biletflow.backend.services.impl;
 
+import jakarta.annotation.Nullable;
+import jakarta.persistence.criteria.Predicate;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.AuditAction;
+import kz.edu.biletflow.backend.entities.NotificationType;
+import kz.edu.biletflow.backend.entities.OrderStatus;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
+import kz.edu.biletflow.backend.repositories.OrderRepository;
 import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
 import kz.edu.biletflow.backend.repositories.StaffAssignmentRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.AccountEmailService;
 import kz.edu.biletflow.backend.services.AuditService;
+import kz.edu.biletflow.backend.services.NotificationService;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 
 @Service
@@ -34,6 +45,8 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final AccountEmailService accountEmailService;
+    private final OrderRepository orderRepository;
+    private final NotificationService notificationService;
 
     @Override
     public UserResponse getUserById(Long id) {
@@ -119,8 +132,88 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Page<UserResponse> getAllUsers(Pageable pageable) {
-        Page<User> usersPage = userRepository.findAll(pageable);
-        return usersPage.map(userMapper::toDto);
+    @Transactional(readOnly = true)
+    public Page<UserResponse> searchUsers(@Nullable String q, @Nullable User.Role role, @Nullable Boolean suspended,
+                                          Pageable pageable) {
+        String text = SearchText.normalize(q);
+        Specification<User> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (text != null) {
+                String pattern = SearchText.containsPattern(text);
+                Predicate match = cb.or(
+                        cb.like(cb.lower(root.get("email")), pattern, SearchText.ESCAPE),
+                        cb.like(cb.lower(root.get("fullName")), pattern, SearchText.ESCAPE));
+                Long id = SearchText.asId(text);
+                if (id != null) {
+                    match = cb.or(match, cb.equal(root.get("id"), id));
+                }
+                predicates.add(match);
+            }
+            if (role != null) {
+                predicates.add(cb.equal(root.get("role"), role));
+            }
+            if (suspended != null) {
+                predicates.add(cb.equal(root.get("suspended"), suspended));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return userRepository.findAll(spec, pageable).map(userMapper::toDto);
     }
-}
+
+    @Override
+    @Transactional
+    public UserResponse suspendUser(Long adminId, Long userId, @Nullable String reason) {
+        if (adminId.equals(userId)) {
+            throw new BusinessRuleViolationException("You cannot suspend your own account");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + userId + " not found"));
+        if (user.isSuspended()) {
+            throw new BusinessRuleViolationException("User is already suspended");
+        }
+        // Admins can't lock each other out by accident; demote first if it is really needed.
+        if (user.getRole() == User.Role.PLATFORM_ADMIN) {
+            throw new BusinessRuleViolationException("A platform admin cannot be suspended; change their role first");
+        }
+
+        String trimmedReason = reason != null && !reason.isBlank() ? reason.trim() : null;
+        user.setSuspended(true);
+        user.setSuspendedAt(LocalDateTime.now());
+        user.setSuspensionReason(trimmedReason);
+        User saved = userRepository.save(user);
+
+        // Unpaid reservations go back on sale. Bought tickets stay valid: the suspension is reversible,
+        // and refunding them is a separate decision for the organizer.
+        orderRepository.updateStatusByUserId(userId, OrderStatus.PENDING, OrderStatus.CANCELLED);
+
+        auditService.record(adminId, AuditAction.USER_SUSPENDED, userId, null,
+                saved.getEmail() + " suspended" + (trimmedReason != null ? ": " + trimmedReason : ""));
+        notificationService.notifyUser(userId, NotificationType.ACCOUNT_SUSPENDED,
+                "Your BiletFlow account has been suspended",
+                "You can no longer sign in to BiletFlow."
+                        + (trimmedReason != null ? " Reason: " + trimmedReason + "." : "")
+                        + " Tickets you have already bought remain valid."
+                        + " If you think this is a mistake, contact BiletFlow support.",
+                null);
+        return userMapper.toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse unsuspendUser(Long adminId, Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User with id " + userId + " not found"));
+        if (!user.isSuspended()) {
+            throw new BusinessRuleViolationException("User is not suspended");
+        }
+        user.setSuspended(false);
+        user.setSuspendedAt(null);
+        user.setSuspensionReason(null);
+        User saved = userRepository.save(user);
+
+        auditService.record(adminId, AuditAction.USER_UNSUSPENDED, userId, null, saved.getEmail() + " unsuspended");
+        notificationService.notifyUser(userId, NotificationType.ACCOUNT_REINSTATED,
+                "Your BiletFlow account has been restored",
+                "Your account is active again and you can sign in to BiletFlow.", null);
+        return userMapper.toDto(saved);
+    }}

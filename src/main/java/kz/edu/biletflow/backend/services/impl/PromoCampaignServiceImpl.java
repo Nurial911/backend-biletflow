@@ -14,6 +14,10 @@ import kz.edu.biletflow.backend.services.EventService;
 import kz.edu.biletflow.backend.services.PromoCampaignService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,6 +90,23 @@ public class PromoCampaignServiceImpl implements PromoCampaignService {
     public List<PromoCampaignResponse> getCampaigns(Long eventId, @Nullable Long requesterId, boolean isPlatformAdmin) {
         getManagedEvent(eventId, requesterId, isPlatformAdmin);
         return toDtos(campaignRepository.findAllByEventIdOrderByIdDesc(eventId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PromoCampaignResponse> searchCampaigns(@Nullable Long eventId, @Nullable Boolean enabled, Pageable pageable) {
+        Specification<PromoCampaign> spec = (root, query, cb) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            if (eventId != null) {
+                predicates.add(cb.equal(root.get("event").get("id"), eventId));
+            }
+            if (enabled != null) {
+                predicates.add(cb.equal(root.get("enabled"), enabled));
+            }
+            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+        Page<PromoCampaign> page = campaignRepository.findAll(spec, pageable);
+        return new PageImpl<>(toDtos(page.getContent()), pageable, page.getTotalElements());
     }
 
     @Override

@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.repositories;
 
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import jakarta.persistence.LockModeType;
 import kz.edu.biletflow.backend.entities.PromoCampaign;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,7 +13,8 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PromoCampaignRepository extends JpaRepository<PromoCampaign, Long> {
+public interface PromoCampaignRepository extends JpaRepository<PromoCampaign, Long>, JpaSpecificationExecutor<PromoCampaign> {
+
     List<PromoCampaign> findAllByEventIdOrderByIdDesc(Long eventId);
 
     Optional<PromoCampaign> findByIdAndEventId(Long id, Long eventId);

@@ -58,6 +58,17 @@ public class User {
     @Column(name = "is_deleted", nullable = false)
     private boolean isDeleted = false;
 
+    // Set by a platform admin. A suspended user can't log in, and tokens already issued stop working
+    // (JwtAuthenticationFilter checks this flag on every request).
+    @Column(name = "is_suspended", nullable = false)
+    private boolean suspended = false;
+
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
+
+    @Column(name = "suspension_reason", length = 500)
+    private String suspensionReason;
+
     public enum Role {
         ATTENDEE, ORGANIZER, EVENT_ADMIN, PLATFORM_ADMIN
     }

@@ -5,6 +5,7 @@ import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BadCredentialsException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
+import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.AccountEmailService;
@@ -29,6 +30,11 @@ public class AuthServiceImpl {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new BadCredentialsException("Incorrect email or password.");
+        }
+        // Checked after the password, so the state of an account isn't revealed to someone who doesn't own it.
+        if (user.isSuspended()) {
+            throw new ForbiddenOperationException("This account has been suspended"
+                    + (user.getSuspensionReason() != null ? ": " + user.getSuspensionReason() : ""));
         }
 
         String token = jwtService.generateToken(user);

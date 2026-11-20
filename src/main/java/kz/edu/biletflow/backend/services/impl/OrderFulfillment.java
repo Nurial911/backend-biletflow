@@ -5,7 +5,7 @@ import kz.edu.biletflow.backend.repositories.PaymentRepository;
 import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.services.NotificationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import kz.edu.biletflow.backend.services.PlatformSettingsService;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -24,9 +24,9 @@ public class OrderFulfillment {
     private final TicketRepository ticketRepository;
     private final NotificationService notificationService;
 
-    // Placeholder rate: the SRS leaves the real one undecided. Deducted from the organizer's payout (SRS 3.3).
-    @Value("${app.payments.processing-fee-percent:2.5}")
-    private BigDecimal processingFeePercent;
+    // The rate in effect (admin setting or app.payments.processing-fee-percent); deducted from the organizer's
+    // payout (SRS 3.3). Each Payment stores the fee it was charged, so a later change doesn't touch old payments.
+    private final PlatformSettingsService platformSettingsService;
 
     public record PaymentDetails(String reference, PaymentStatus status, BigDecimal processingFee, String failureReason,
                                  String provider, String providerTransactionId, boolean simulated) {
@@ -38,7 +38,8 @@ public class OrderFulfillment {
     }
 
     public BigDecimal processingFee(BigDecimal amount) {
-        return amount.multiply(processingFeePercent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        return amount.multiply(platformSettingsService.processingFeePercent())
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
     public Payment savePayment(Order order, PaymentDetails details) {
