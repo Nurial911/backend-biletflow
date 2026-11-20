@@ -4615,6 +4615,114 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Event attendance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Holders split into checked in and absent\", () => {",
+                  "    const a = pm.response.json();",
+                  "    pm.expect(a.checkedIn).to.be.above(0);",
+                  "    pm.expect(a.checkedIn + a.absent).to.eql(a.ticketHolders);",
+                  "    pm.expect(a.ticketTypes.length).to.be.above(0);",
+                  "    pm.expect(a.arrivals[a.arrivals.length - 1].cumulative).to.eql(a.checkedIn);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/{{eventId}}/attendance?interval=15",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events",
+                "{{eventId}}",
+                "attendance"
+              ],
+              "query": [
+                {
+                  "key": "interval",
+                  "value": "15"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sales over time, paid ticket type only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Daily series is there, totals unchanged\", () => {",
+                  "    const s = pm.response.json();",
+                  "    pm.expect(s.salesByDay.length).to.be.above(0);",
+                  "    pm.expect(s.revenue).to.eql(25000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/{{eventId}}/sales?ticketTypeId={{paidTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events",
+                "{{eventId}}",
+                "sales"
+              ],
+              "query": [
+                {
+                  "key": "ticketTypeId",
+                  "value": "{{paidTypeId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -5402,6 +5510,262 @@
                 {
                   "key": "token",
                   "value": "{{attendeeToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10a Event history",
+      "item": [
+        {
+          "name": "My cancelled events",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"The event is there as CANCELLED\", () => {",
+                  "    const e = pm.response.json().content.find(x => x.id === Number(pm.collectionVariables.get(\"eventId\")));",
+                  "    pm.expect(e.phase).to.eql(\"CANCELLED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events?phase=CANCELLED",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "phase",
+                  "value": "CANCELLED"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Event timeline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Newest first, the whole story is there\", () => {",
+                  "    const actions = pm.response.json().content.map(e => e.action);",
+                  "    pm.expect(actions[0]).to.eql(\"EVENT_CANCELLED\");",
+                  "    pm.expect(actions).to.include.members([\"EVENT_CREATED\", \"EVENT_PUBLISHED\", \"TICKET_TYPE_CREATED\", \"PAYMENT_SUCCEEDED\", \"TICKET_CHECKED_IN\", \"PROMO_CAMPAIGN_CREATED\", \"ORDER_REFUNDED\"]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/{{eventId}}/history?size=200",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events",
+                "{{eventId}}",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "200"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Timeline: orders only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Only order entries\", () => {",
+                  "    const entries = pm.response.json().content;",
+                  "    pm.expect(entries.length).to.be.above(0);",
+                  "    entries.forEach(e => pm.expect(e.entityType).to.eql(\"ORDER\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/{{eventId}}/history?entityType=ORDER",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events",
+                "{{eventId}}",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "entityType",
+                  "value": "ORDER"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Timeline: admin shown as BiletFlow Support",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"No admin email for the organizer\", () => {",
+                  "    const e = pm.response.json().content[0];",
+                  "    pm.expect(e.actorName).to.eql(\"BiletFlow Support\");",
+                  "    pm.expect(e.actorEmail).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/{{eventId}}/history?action=PAID_SALES_SUSPENDED",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events",
+                "{{eventId}}",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "PAID_SALES_SUSPENDED"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{organizerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Scanner can't read the timeline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/organizer/events/{{eventId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "organizer",
+                "events",
+                "{{eventId}}",
+                "history"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{scannerToken}}",
                   "type": "string"
                 }
               ]

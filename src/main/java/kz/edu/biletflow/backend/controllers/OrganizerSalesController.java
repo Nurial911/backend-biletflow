@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDate;
 import java.util.List;
 
 // Sales dashboard of an organizer. Only the event's organizer (or a platform admin for the
@@ -30,11 +33,16 @@ public interface OrganizerSalesController {
     ResponseEntity<SalesSummaryResponse> getSalesSummary(@AuthenticationPrincipal UserPrincipal currentUser,
                                                          @RequestParam(required = false) List<Long> eventIds);
 
-    // One event, including sales by day.
+    // One event, including sales by day. ?from=&to= (inclusive dates) and ?ticketTypeId= filter salesByDay only;
+    // the totals and ticketTypes always cover the whole event.
     @PreAuthorize("hasAnyRole('ORGANIZER', 'PLATFORM_ADMIN')")
     @GetMapping("/events/{eventId}/sales")
-    ResponseEntity<EventSalesResponse> getEventSales(@AuthenticationPrincipal UserPrincipal currentUser,
-                                                     @PathVariable Long eventId);
+    ResponseEntity<EventSalesResponse> getEventSales(
+            @AuthenticationPrincipal UserPrincipal currentUser,
+            @PathVariable Long eventId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long ticketTypeId);
 
     // Orders of one event, newest first. ?status=PAID filters by status, ?q= by part of the buyer's email.
     @PreAuthorize("hasAnyRole('ORGANIZER', 'PLATFORM_ADMIN')")

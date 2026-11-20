@@ -38,6 +38,35 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     long countByEventIdAndStatus(Long eventId, TicketStatus status);
 
+    // Attendance per ticket type, over tickets that grant entry (VALID + USED):
+    // [ticketTypeId, holders, checkedIn, firstArrival, lastArrival].
+    @Query("""
+        SELECT t.ticketType.id, COUNT(t),
+               SUM(CASE WHEN t.status = kz.edu.biletflow.backend.entities.TicketStatus.USED THEN 1 ELSE 0 END),
+               MIN(t.usedAt), MAX(t.usedAt)
+        FROM Ticket t
+        WHERE t.event.id = :eventId
+          AND t.status IN (kz.edu.biletflow.backend.entities.TicketStatus.VALID,
+                           kz.edu.biletflow.backend.entities.TicketStatus.USED)
+        GROUP BY t.ticketType.id
+        """)
+    List<Object[]> aggregateAttendanceByTicketType(@Param("eventId") Long eventId);
+
+    // Checked-in tickets by arrival interval, oldest first: [intervalStart, count]. Intervals are aligned to
+    // midnight (origin 2000-01-01). typeId 0 means every ticket type.
+    @Query(value = """
+        SELECT date_bin(make_interval(mins => :minutes), t.used_at, TIMESTAMP '2000-01-01 00:00:00') AS bucket,
+               COUNT(*)
+        FROM tickets t
+        WHERE t.event_id = :eventId AND t.status = 'USED' AND t.used_at IS NOT NULL
+          AND (:typeId = 0 OR t.ticket_type_id = :typeId)
+        GROUP BY bucket
+        ORDER BY bucket
+        """, nativeQuery = true)
+    List<Object[]> countArrivalsByInterval(@Param("eventId") Long eventId,
+                                           @Param("typeId") long typeId,
+                                           @Param("minutes") int minutes);
+
 
     // Everyone holding a ticket in this status, for event-wide notifications.
     @Query("SELECT DISTINCT t.owner.id FROM Ticket t WHERE t.event.id = :eventId AND t.status = :status")

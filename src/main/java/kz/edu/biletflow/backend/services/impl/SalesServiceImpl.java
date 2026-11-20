@@ -15,6 +15,7 @@ import kz.edu.biletflow.backend.entities.OrderStatus;
 import kz.edu.biletflow.backend.entities.PaymentStatus;
 import kz.edu.biletflow.backend.entities.RefundStatus;
 import kz.edu.biletflow.backend.entities.TicketType;
+import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
@@ -47,6 +48,9 @@ import java.util.stream.Collectors;
 public class SalesServiceImpl implements SalesService {
     // Orders that were sales at some point: gross revenue and discounts count both.
     private static final List<OrderStatus> SALE_STATUSES = List.of(OrderStatus.PAID, OrderStatus.REFUNDED);
+    // Bounds of salesByDay when the caller leaves the date range open.
+    private static final LocalDateTime SERIES_START = LocalDate.of(2000, 1, 1).atStartOfDay();
+    private static final LocalDateTime SERIES_END = LocalDate.of(3000, 1, 1).atStartOfDay();
 
     private final RefundRepository refundRepository;
     private final EventRepository eventRepository;
@@ -103,11 +107,22 @@ public class SalesServiceImpl implements SalesService {
 
     @Override
     @Transactional(readOnly = true)
-    public EventSalesResponse getEventSales(Long eventId, Long requesterId, boolean isPlatformAdmin) {
+    public EventSalesResponse getEventSales(Long eventId, Long requesterId, boolean isPlatformAdmin,
+                                            @Nullable LocalDate from, @Nullable LocalDate to, @Nullable Long ticketTypeId) {
         Event event = getManagedEvent(eventId, requesterId, isPlatformAdmin);
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BusinessRuleViolationException("'from' must not be after 'to'.");
+        }
+        if (ticketTypeId != null && ticketTypeRepository.findById(ticketTypeId)
+                .filter(t -> t.getEvent().getId().equals(eventId)).isEmpty()) {
+            throw new ResourceNotFoundException("Ticket type " + ticketTypeId + " not found in event " + eventId);
+        }
         EventSalesResponse response = buildEventSales(List.of(event)).getFirst();
 
-        List<DailySalesResponse> daily = orderItemRepository.dailyPaidSales(eventId, SALE_STATUSES).stream()
+        List<DailySalesResponse> daily = orderItemRepository.dailyPaidSales(eventId, SALE_STATUSES,
+                        from != null ? from.atStartOfDay() : SERIES_START,
+                        to != null ? to.plusDays(1).atStartOfDay() : SERIES_END,
+                        ticketTypeId != null ? ticketTypeId : 0L).stream()
                 .map(row -> new DailySalesResponse((LocalDate) row[0], toLong(row[1]), toLong(row[2]), toMoney(row[3])))
                 .toList();
         response.setSalesByDay(daily);

@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -26,9 +27,11 @@ public class OrganizerSalesControllerImpl implements OrganizerSalesController {
     }
 
     @Override
-    public ResponseEntity<EventSalesResponse> getEventSales(UserPrincipal currentUser, Long eventId) {
+    public ResponseEntity<EventSalesResponse> getEventSales(UserPrincipal currentUser, Long eventId,
+                                                            LocalDate from, LocalDate to, Long ticketTypeId) {
         boolean isPlatformAdmin = currentUser.hasRole("PLATFORM_ADMIN");
-        return ResponseEntity.ok(salesService.getEventSales(eventId, currentUser.getId(), isPlatformAdmin));
+        return ResponseEntity.ok(salesService.getEventSales(eventId, currentUser.getId(), isPlatformAdmin,
+                from, to, ticketTypeId));
     }
 
     @Override

@@ -55,6 +55,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                                            @Param("paid") OrderStatus paid);
 
     // Sales of one event by payment date, including orders refunded later: [date, paidOrders, ticketsSold, revenue].
+    // Payments in [from, to); typeId 0 = all ticket types, otherwise only that type's items (and orders containing it).
     @Query("""
         SELECT cast(o.paidAt as LocalDate),
                COUNT(DISTINCT o.id),
@@ -62,8 +63,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
                SUM(i.unitPrice * i.quantity)
         FROM OrderItem i JOIN i.order o
         WHERE o.event.id = :eventId AND o.status IN :statuses AND o.paidAt IS NOT NULL
+          AND o.paidAt >= :from AND o.paidAt < :to
+          AND (:typeId = 0 OR i.ticketType.id = :typeId)
         GROUP BY cast(o.paidAt as LocalDate)
         ORDER BY cast(o.paidAt as LocalDate)
         """)
-    List<Object[]> dailyPaidSales(@Param("eventId") Long eventId, @Param("statuses") Collection<OrderStatus> statuses);
+    List<Object[]> dailyPaidSales(@Param("eventId") Long eventId,
+                                  @Param("statuses") Collection<OrderStatus> statuses,
+                                  @Param("from") LocalDateTime from,
+                                  @Param("to") LocalDateTime to,
+                                  @Param("typeId") long typeId);
 }
