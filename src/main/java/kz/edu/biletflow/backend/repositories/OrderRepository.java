@@ -1,5 +1,7 @@
 package kz.edu.biletflow.backend.repositories;
 
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import jakarta.persistence.LockModeType;
 import kz.edu.biletflow.backend.entities.Order;
 import kz.edu.biletflow.backend.entities.OrderStatus;
@@ -20,6 +22,11 @@ import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
+    // Admin search; items are read for the ticket count.
+    @Override
+    @EntityGraph(attributePaths = {"event", "user", "promoCampaign"})
+    Page<Order> findAll(Specification<Order> spec, Pageable pageable);
+
     Page<Order> findAllByUserId(Long userId, Pageable pageable);
 
     // Row lock: two payment requests for one order must not both see it PENDING and issue tickets.
@@ -101,4 +108,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     int updateStatusByEventId(@Param("eventId") Long eventId,
                               @Param("from") OrderStatus from,
                               @Param("to") OrderStatus to);
+
+    @Modifying
+    @Query("UPDATE Order o SET o.status = :to WHERE o.user.id = :userId AND o.status = :from")
+    int updateStatusByUserId(@Param("userId") Long userId,
+                             @Param("from") OrderStatus from,
+                             @Param("to") OrderStatus to);
 }

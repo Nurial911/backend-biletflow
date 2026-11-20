@@ -15,7 +15,7 @@ import kz.edu.biletflow.backend.services.AuditService;
 import kz.edu.biletflow.backend.services.NotificationService;
 import kz.edu.biletflow.backend.services.PaidSalesActivationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import kz.edu.biletflow.backend.services.PlatformSettingsService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -42,8 +42,7 @@ public class PaidSalesActivationServiceImpl implements PaidSalesActivationServic
     private final NotificationService notificationService;
 
     // Placeholder amount: the SRS leaves it undecided (section 12).
-    @Value("${app.payments.activation-fee-kzt:5000}")
-    private BigDecimal activationFee;
+    private final PlatformSettingsService platformSettingsService; // the activation fee in effect
 
     @Override
     @Transactional(readOnly = true)
@@ -68,12 +67,13 @@ public class PaidSalesActivationServiceImpl implements PaidSalesActivationServic
         if (activation.getFeePaidAt() != null) {
             throw new BusinessRuleViolationException("The activation fee has already been paid for this event");
         }
-        activation.setFeeAmount(activationFee);
+        BigDecimal fee = platformSettingsService.activationFee(); // kept on the record if the admin changes it later
+        activation.setFeeAmount(fee);
         activation.setFeeReference("SIM-" + UUID.randomUUID());
         activation.setFeePaidAt(LocalDateTime.now());
         PaidSalesActivation saved = activationRepository.save(activation);
         auditService.record(organizerId, AuditAction.ACTIVATION_FEE_PAID, saved.getId(), eventId,
-                "Simulated activation fee of " + activationFee + " KZT paid");
+                "Simulated activation fee of " + fee + " KZT paid");
         return toDto(event, saved);
     }
 
@@ -216,7 +216,7 @@ public class PaidSalesActivationServiceImpl implements PaidSalesActivationServic
         dto.setEventTitle(event.getTitle());
         dto.setStatus(activation.getStatus());
         dto.setSimulated(activation.isSimulated());
-        dto.setFeeAmount(activation.getFeeAmount() != null ? activation.getFeeAmount() : activationFee);
+        dto.setFeeAmount(activation.getFeeAmount() != null ? activation.getFeeAmount() : platformSettingsService.activationFee());
         dto.setFeeReference(activation.getFeeReference());
         dto.setFeePaidAt(activation.getFeePaidAt());
         dto.setTermsAcceptedAt(activation.getTermsAcceptedAt());

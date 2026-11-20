@@ -2,8 +2,10 @@ package kz.edu.biletflow.backend.controllers;
 
 import jakarta.validation.Valid;
 import kz.edu.biletflow.backend.dtos.ChangeRoleRequest;
+import kz.edu.biletflow.backend.dtos.SuspendUserRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
+import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,9 +38,27 @@ public interface UserController {
     @DeleteMapping("/{id}")
     ResponseEntity<Void> deleteUser(@AuthenticationPrincipal UserPrincipal currentUser, @PathVariable Long id);
 
+    // Search: ?q= part of the email or name (case-insensitive) or the exact id, ?role=, ?suspended=true|false.
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     @GetMapping
-    ResponseEntity<Page<UserResponse>> getAllUsers(@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable);
+    ResponseEntity<Page<UserResponse>> searchUsers(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) User.Role role,
+            @RequestParam(required = false) Boolean suspended,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable);
+
+    // Blocks sign-in and every token already issued; unpaid orders are cancelled, bought tickets stay valid.
+    // Not on yourself or on a platform admin.
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PostMapping("/{id}/suspend")
+    ResponseEntity<UserResponse> suspendUser(@AuthenticationPrincipal UserPrincipal currentUser,
+                                             @PathVariable Long id,
+                                             @Valid @RequestBody(required = false) SuspendUserRequest request);
+
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PostMapping("/{id}/unsuspend")
+    ResponseEntity<UserResponse> unsuspendUser(@AuthenticationPrincipal UserPrincipal currentUser,
+                                               @PathVariable Long id);
 
     // ==========================================
     // ЗОНА САМООБСЛУЖИВАНИЯ (Только свои данные)

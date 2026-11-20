@@ -175,6 +175,12 @@ public class SalesServiceImpl implements SalesService {
 
     // helpers //
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<EventSalesResponse> getEventsSales(List<Event> events) {
+        return buildEventSales(events);
+    }
+
     private List<EventSalesResponse> buildEventSales(List<Event> events) {
         if (events.isEmpty()) {
             return List.of();

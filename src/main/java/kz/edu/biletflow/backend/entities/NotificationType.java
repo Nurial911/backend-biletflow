@@ -12,5 +12,9 @@ public enum NotificationType {
     PAID_SALES_STATUS,
     SUPPORT_MESSAGE,
     SUPPORT_ASSIGNED,
-    SUPPORT_STATUS
+    SUPPORT_STATUS,
+    // Only the email reaches a suspended user: they can't sign in to read in-app notifications.
+    ACCOUNT_SUSPENDED,
+    ACCOUNT_REINSTATED,
+    EVENT_REPORT_REVIEWED
 }

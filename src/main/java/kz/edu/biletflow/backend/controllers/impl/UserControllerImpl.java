@@ -2,8 +2,10 @@ package kz.edu.biletflow.backend.controllers.impl;
 
 import kz.edu.biletflow.backend.controllers.UserController;
 import kz.edu.biletflow.backend.dtos.ChangeRoleRequest;
+import kz.edu.biletflow.backend.dtos.SuspendUserRequest;
 import kz.edu.biletflow.backend.dtos.UpdateUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
+import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import kz.edu.biletflow.backend.services.UserService;
 import lombok.RequiredArgsConstructor;
@@ -41,9 +43,20 @@ public class UserControllerImpl implements UserController {
     }
 
     @Override
-    public ResponseEntity<Page<UserResponse>> getAllUsers(Pageable pageable) {
-        Page<UserResponse> users = userService.getAllUsers(pageable);
-        return ResponseEntity.ok(users);
+    public ResponseEntity<Page<UserResponse>> searchUsers(String q, User.Role role, Boolean suspended,
+                                                          Pageable pageable) {
+        return ResponseEntity.ok(userService.searchUsers(q, role, suspended, pageable));
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> suspendUser(UserPrincipal currentUser, Long id, SuspendUserRequest request) {
+        String reason = request != null ? request.getReason() : null;
+        return ResponseEntity.ok(userService.suspendUser(currentUser.getId(), id, reason));
+    }
+
+    @Override
+    public ResponseEntity<UserResponse> unsuspendUser(UserPrincipal currentUser, Long id) {
+        return ResponseEntity.ok(userService.unsuspendUser(currentUser.getId(), id));
     }
 
     @Override

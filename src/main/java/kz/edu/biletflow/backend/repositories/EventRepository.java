@@ -2,6 +2,8 @@ package kz.edu.biletflow.backend.repositories;
 
 import jakarta.persistence.LockModeType;
 import kz.edu.biletflow.backend.entities.Event;
+import kz.edu.biletflow.backend.entities.EventStatus;
+import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +18,14 @@ import java.util.Optional;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
+    // Admin events report: events starting in [from, to), with their organizer.
+    @Query("SELECT e FROM Event e JOIN FETCH e.organizer WHERE e.startTime >= :from AND e.startTime < :to ORDER BY e.startTime, e.id")
+    List<Event> findAllStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    long countByStatus(EventStatus status);
+
+    long countBySuspendedTrue();
+
     Page<Event> findAllByOrganizerId(Long organizerId, Pageable pageable);
 
     boolean existsByOrganizerId(Long organizerId);

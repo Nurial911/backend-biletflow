@@ -14,6 +14,9 @@ public interface UserMapper {
     @Mapping(target = "events", ignore = true) // Ignore relationships on creation
     @Mapping(target = "createdAt", ignore = true) // Let JPA handle the timestamp
     @Mapping(target = "verificationStatus", ignore = true)
+    @Mapping(target = "suspended", ignore = true)
+    @Mapping(target = "suspendedAt", ignore = true)
+    @Mapping(target = "suspensionReason", ignore = true)
     User toEntity(RegisterUserRequest request);
 
     UserResponse toDto(User user);

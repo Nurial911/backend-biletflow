@@ -6,6 +6,8 @@ import kz.edu.biletflow.backend.dtos.PromoCampaignResponse;
 import kz.edu.biletflow.backend.dtos.PromoPreviewResponse;
 import kz.edu.biletflow.backend.entities.OrderItem;
 import kz.edu.biletflow.backend.entities.PromoCampaign;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -15,6 +17,9 @@ public interface PromoCampaignService {
     PromoCampaignResponse createCampaign(Long organizerId, Long eventId, CreatePromoCampaignRequest request);
 
     List<PromoCampaignResponse> getCampaigns(Long eventId, @Nullable Long requesterId, boolean isPlatformAdmin);
+
+    // Platform admin: campaigns of all events (promo-code activity), optionally of one event or enabled/disabled only.
+    Page<PromoCampaignResponse> searchCampaigns(@Nullable Long eventId, @Nullable Boolean enabled, Pageable pageable);
 
     PromoCampaignResponse getCampaign(Long eventId, Long campaignId, @Nullable Long requesterId, boolean isPlatformAdmin);
 

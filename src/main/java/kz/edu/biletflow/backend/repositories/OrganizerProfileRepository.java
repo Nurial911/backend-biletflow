@@ -13,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface OrganizerProfileRepository extends JpaRepository<OrganizerProfile, Long> {
+    long countByVerificationStatus(OrganizerVerificationStatus status);
+
     boolean existsByUserId(Long userId);
 
     OrganizerProfile findByUserId(Long userId);

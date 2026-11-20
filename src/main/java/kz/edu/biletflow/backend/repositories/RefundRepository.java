@@ -1,5 +1,9 @@
 package kz.edu.biletflow.backend.repositories;
 
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import kz.edu.biletflow.backend.entities.Refund;
 import kz.edu.biletflow.backend.entities.RefundStatus;
 import org.springframework.data.domain.Pageable;
@@ -13,7 +17,15 @@ import java.util.Collection;
 import java.util.List;
 
 @Repository
-public interface RefundRepository extends JpaRepository<Refund, Long> {
+public interface RefundRepository extends JpaRepository<Refund, Long>, JpaSpecificationExecutor<Refund> {
+    @Override
+    @EntityGraph(attributePaths = {"order", "order.event", "order.user"})
+    Page<Refund> findAll(Specification<Refund> spec, Pageable pageable);
+
+    long countByStatus(RefundStatus status);
+
+    long countByStatusAndCreatedAtGreaterThanEqual(RefundStatus status, LocalDateTime since);
+
     List<Refund> findAllByOrderIdOrderByIdAsc(Long orderId);
 
     boolean existsByOrderIdAndStatus(Long orderId, RefundStatus status);
