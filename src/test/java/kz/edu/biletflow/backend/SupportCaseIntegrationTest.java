@@ -74,6 +74,27 @@ class SupportCaseIntegrationTest extends ApiIntegrationTest {
     }
 
     @Test
+    void casesCanBeNarrowedToOneEvent() {
+        String organizer = organizer();
+        long event = publishedEvent(organizer);
+        long otherEvent = publishedEvent(organizer);
+        String attendee = register();
+        createOrder(attendee, event, ticketType(organizer, event, 0, 10), 1);
+        createOrder(attendee, otherEvent, ticketType(organizer, otherEvent, 0, 10), 1);
+        long id = open(attendee, Map.of("category", "OTHER", "subject", "A", "message", "Hi", "eventId", event))
+                .get("supportCase").get("id").asLong();
+        long otherId = open(attendee, Map.of("category", "OTHER", "subject", "B", "message", "Hi", "eventId", otherEvent))
+                .get("supportCase").get("id").asLong();
+
+        assertThat(caseIds(organizer, "&eventId=" + event)).containsExactly(id);
+        assertThat(caseIds(organizer, "&eventId=" + otherEvent)).containsExactly(otherId);
+        assertThat(caseIds(attendee, "&eventId=" + event)).containsExactly(id);
+        assertThat(caseIds(admin(), "&eventId=" + event)).containsExactly(id);
+        // The filter never widens access: another organizer gets an empty page.
+        assertThat(caseIds(organizer(), "&eventId=" + event)).isEmpty();
+    }
+
+    @Test
     void aCaseCanOnlyReferToTheRequestersOwnOrderOrTicket() {
         String organizer = organizer();
         long event = publishedEvent(organizer);
@@ -197,7 +218,11 @@ class SupportCaseIntegrationTest extends ApiIntegrationTest {
     }
 
     private List<Long> caseIds(String user) {
-        return list(call(HttpMethod.GET, CASES + "?size=100", user, null).assertStatus(200).json().get("content")).stream()
+        return caseIds(user, "");
+    }
+
+    private List<Long> caseIds(String user, String filter) {
+        return list(call(HttpMethod.GET, CASES + "?size=100" + filter, user, null).assertStatus(200).json().get("content")).stream()
                 .map(c -> c.get("id").asLong())
                 .toList();
     }

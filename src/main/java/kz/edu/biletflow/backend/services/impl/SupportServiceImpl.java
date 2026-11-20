@@ -81,9 +81,13 @@ public class SupportServiceImpl implements SupportService {
     @Override
     @Transactional(readOnly = true)
     public Page<SupportCaseResponse> getCases(Long userId, boolean isPlatformAdmin, @Nullable SupportCaseStatus status,
-                                              @Nullable Boolean escalated, Pageable pageable) {
+                                              @Nullable Boolean escalated, @Nullable Long eventId, Pageable pageable) {
         Specification<SupportCase> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            // Only narrows: the access rule below still applies, so another organizer's event gives an empty page.
+            if (eventId != null) {
+                predicates.add(cb.equal(root.get("event").get("id"), eventId));
+            }
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
             }

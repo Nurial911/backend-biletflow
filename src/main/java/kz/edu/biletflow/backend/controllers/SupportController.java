@@ -19,11 +19,13 @@ public interface SupportController {
     ResponseEntity<SupportCaseDetailResponse> openCase(@AuthenticationPrincipal UserPrincipal currentUser,
                                                        @Valid @RequestBody OpenSupportCaseRequest request);
 
-    // Cases the user opened or may handle; a platform admin sees all of them.
+    // Cases the user opened or may handle; a platform admin sees all of them. eventId narrows the list
+    // to one event's cases (an event the user can't see simply gives an empty page).
     @GetMapping
     ResponseEntity<Page<SupportCaseResponse>> getCases(@AuthenticationPrincipal UserPrincipal currentUser,
                                                        @RequestParam(required = false) SupportCaseStatus status,
                                                        @RequestParam(required = false) Boolean escalated,
+                                                       @RequestParam(required = false) Long eventId,
                                                        @PageableDefault(sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable);
 
     @GetMapping("/{caseId}")

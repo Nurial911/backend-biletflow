@@ -131,6 +131,10 @@ class CoreFlowIntegrationTest extends ApiIntegrationTest {
         assertThat(sales.get("revenue").decimalValue()).isEqualByComparingTo("7500");
         assertThat(sales.get("processingFees").decimalValue()).isEqualByComparingTo("187.50");
         assertThat(sales.get("estimatedPayout").decimalValue()).isEqualByComparingTo("7312.50");
+        // The event inherits the venue's capacity of 500.
+        assertThat(sales.get("capacity").asInt()).isEqualTo(500);
+        assertThat(sales.get("ticketsRemaining").asLong()).isEqualTo(497);
+        assertThat(sales.get("percentSold").decimalValue()).isEqualByComparingTo("0.6");
     }
 
     @Test
