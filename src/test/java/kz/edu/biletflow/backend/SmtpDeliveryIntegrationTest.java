@@ -53,7 +53,7 @@ class SmtpDeliveryIntegrationTest extends ApiIntegrationTest {
         JsonNode confirmation = messagesTo(email).stream()
                 .filter(m -> m.get("Subject").asString().equals("Your tickets for Концерт"))
                 .findFirst().orElseThrow();
-        assertThat(confirmation.get("Attachments").asInt()).isEqualTo(1);
+        assertThat(confirmation.get("Attachments").asInt()).isEqualTo(2); // the tickets PDF and the event .ics
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT email_status FROM notifications WHERE recipient_email = ?", String.class, email)).isEqualTo("SENT");
     }

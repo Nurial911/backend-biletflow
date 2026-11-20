@@ -1,12 +1,16 @@
 package kz.edu.biletflow.backend.services;
 
-import jakarta.annotation.Nullable;
+import java.util.List;
 
-public record OutgoingMail(String to, String subject, String text, @Nullable Attachment attachment) {
-    public OutgoingMail(String to, String subject, String text) {
-        this(to, subject, text, null);
+public record OutgoingMail(String to, String subject, String text, List<Attachment> attachments) {
+    public OutgoingMail {
+        attachments = List.copyOf(attachments);
     }
 
-    public record Attachment(String filename, byte[] content) {
+    public OutgoingMail(String to, String subject, String text) {
+        this(to, subject, text, List.of());
+    }
+
+    public record Attachment(String filename, String contentType, byte[] content) {
     }
 }

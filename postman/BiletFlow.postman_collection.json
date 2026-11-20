@@ -1935,6 +1935,90 @@
           "response": []
         },
         {
+          "name": "Calendar file (.ics) (NEW)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"iCalendar\", () => { pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/calendar\"); });",
+                  "pm.test(\"Confirmed entry in Almaty time\", () => {",
+                  "    const ics = pm.response.text();",
+                  "    pm.expect(ics).to.include(\"BEGIN:VCALENDAR\");",
+                  "    pm.expect(ics).to.include(\"DTSTART;TZID=Asia/Almaty:\");",
+                  "    pm.expect(ics).to.include(\"STATUS:CONFIRMED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/calendar.ics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "calendar.ics"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Public, like the event page. Use Send and Download and open the file: your calendar app adds the event. The same file is attached to the order confirmation email."
+          },
+          "response": []
+        },
+        {
+          "name": "Calendar links (NEW)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Google and Outlook links\", () => {",
+                  "    const links = pm.response.json();",
+                  "    pm.expect(links.cancelled).to.eql(false);",
+                  "    pm.expect(links.icsUrl).to.include(\"/calendar.ics\");",
+                  "    pm.expect(links.googleCalendarUrl).to.include(\"calendar.google.com\");",
+                  "    pm.expect(links.outlookUrl).to.include(\"outlook.live.com\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/calendar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "calendar"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "One-click options for the event page and order confirmation. Open googleCalendarUrl in a browser to see the prefilled entry."
+          },
+          "response": []
+        },
+        {
           "name": "Scan the ticket",
           "event": [
             {
@@ -6521,6 +6605,87 @@
                   "type": "string"
                 }
               ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Ticket holder gets the cancellation calendar file (NEW)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Marks the entry as cancelled\", () => {",
+                  "    const ics = pm.response.text();",
+                  "    pm.expect(ics).to.include(\"STATUS:CANCELLED\");",
+                  "    pm.expect(ics).to.include(\"SUMMARY:Cancelled: \");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/calendar.ics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "calendar.ics"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{attendeeToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Same UID with a higher SEQUENCE, so opening it replaces the entry added earlier. The cancellation email carries the same file."
+          },
+          "response": []
+        },
+        {
+          "name": "The public no longer gets it (NEW)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/events/{{eventId}}/calendar.ics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "events",
+                "{{eventId}}",
+                "calendar.ics"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": []

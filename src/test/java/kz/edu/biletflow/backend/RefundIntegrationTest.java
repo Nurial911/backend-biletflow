@@ -73,7 +73,7 @@ class RefundIntegrationTest extends ApiIntegrationTest {
                 .filter(m -> m.subject().startsWith("Refund for"))
                 .findFirst().orElseThrow();
         assertThat(mail.text()).contains("5000.00 KZT", "Sold by mistake", "demonstration refund");
-        assertThat(mail.attachment()).isNull();
+        assertThat(mail.attachments()).isEmpty();
     }
 
     @Test

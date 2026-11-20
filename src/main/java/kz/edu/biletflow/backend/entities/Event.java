@@ -75,6 +75,11 @@ public class Event {
     @Column(name = "paid_sales_active", nullable = false, columnDefinition = "boolean not null default false")
     private boolean paidSalesActive = false;
 
+    // iCalendar SEQUENCE: raised on every change of the details and on cancellation, so a newer .ics file
+    // replaces the calendar entry an attendee added earlier (SRS 4.11).
+    @Column(name = "calendar_sequence", nullable = false)
+    private int calendarSequence = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organizer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_events_organizer"))
     private User organizer;
