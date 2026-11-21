@@ -12,6 +12,7 @@ import kz.edu.biletflow.backend.entities.NotificationType;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.repositories.EventReportRepository;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
@@ -114,10 +115,9 @@ public class EventReportServiceImpl implements EventReportService {
                 "Report about event #" + event.getId() + " (" + saved.getReason() + ") " + outcome
                         + (note != null ? ": " + note : ""));
         notificationService.notifyUser(saved.getReporter().getId(), NotificationType.EVENT_REPORT_REVIEWED,
-                "Your report has been reviewed",
-                "Thank you for reporting \"" + event.getTitle() + "\". Our team has reviewed it"
-                        + (saved.getStatus() == EventReport.Status.ACTIONED
-                        ? " and taken action." : " and found no reason to act at this time."),
+                Text.of("eventReport.title"),
+                Text.of(saved.getStatus() == EventReport.Status.ACTIONED ? "eventReport.actioned" : "eventReport.dismissed",
+                        event.getTitle()),
                 null);
         return toDto(saved);
     }

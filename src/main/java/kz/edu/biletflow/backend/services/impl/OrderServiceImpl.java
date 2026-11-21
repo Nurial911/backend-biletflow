@@ -10,6 +10,7 @@ import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.PaymentDeclinedException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.exception.SeatUnavailableException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.mappers.SeatLabels;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.*;
@@ -168,10 +169,8 @@ public class OrderServiceImpl implements OrderService {
             auditService.record(userId, AuditAction.PAYMENT_FAILED, failed.getId(), eventId,
                     "Simulated payment of " + order.getTotalAmount() + " KZT declined for order #" + order.getId());
             notificationService.notifyUser(userId, NotificationType.PAYMENT_FAILED,
-                    "Payment failed for " + order.getEvent().getTitle(),
-                    "The payment for order #" + order.getId() + " was declined, so no tickets were issued."
-                            + " You can try again until the reservation expires."
-                            + "\n\nThis is a demonstration payment: no real money is involved.", null);
+                    Text.of("payment.failed.title", order.getEvent().getTitle()),
+                    Text.of("payment.declined.body", order.getId()), null);
             throw new PaymentDeclinedException(DECLINED_REASON + ", no tickets were issued. You can try again until the hold expires.");
         }
 

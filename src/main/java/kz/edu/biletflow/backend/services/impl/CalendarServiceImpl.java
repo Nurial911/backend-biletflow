@@ -6,6 +6,7 @@ import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.EventStatus;
 import kz.edu.biletflow.backend.entities.VisibilityStatus;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Translator;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.services.CalendarService;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.UriComponentsBuilder;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -22,12 +24,13 @@ public class CalendarServiceImpl implements CalendarService {
     private final EventRepository eventRepository;
     private final TicketRepository ticketRepository;
     private final EventCalendar eventCalendar;
+    private final Translator translator;
 
     @Override
     @Transactional(readOnly = true)
     public CalendarFile getEventCalendar(Long eventId, @Nullable Long requesterId, boolean isPlatformAdmin) {
         Event event = getCalendarEvent(eventId, requesterId, isPlatformAdmin);
-        return new CalendarFile(eventCalendar.fileName(event), eventCalendar.ics(event));
+        return new CalendarFile(eventCalendar.fileName(event), eventCalendar.ics(event, translator.localeOf(requesterId)));
     }
 
     @Override
@@ -45,9 +48,10 @@ public class CalendarServiceImpl implements CalendarService {
         links.setIcsUrl(base.path("/api/events/{id}/calendar.ics").buildAndExpand(event.getId()).toUriString());
         // Web calendars can only add an entry, not cancel one: a cancelled event has just the file.
         if (!cancelled) {
-            links.setGoogleCalendarUrl(eventCalendar.googleCalendarLink(event));
-            links.setOutlookUrl(eventCalendar.outlookLink(event, "outlook.live.com"));
-            links.setOffice365Url(eventCalendar.outlookLink(event, "outlook.office.com"));
+            Locale locale = translator.localeOf(requesterId);
+            links.setGoogleCalendarUrl(eventCalendar.googleCalendarLink(event, locale));
+            links.setOutlookUrl(eventCalendar.outlookLink(event, "outlook.live.com", locale));
+            links.setOffice365Url(eventCalendar.outlookLink(event, "outlook.office.com", locale));
         }
         return links;
     }

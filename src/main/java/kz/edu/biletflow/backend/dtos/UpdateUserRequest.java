@@ -3,6 +3,7 @@ package kz.edu.biletflow.backend.dtos;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import kz.edu.biletflow.backend.entities.Language;
 import lombok.Data;
 
 @Data
@@ -15,4 +16,6 @@ public class UpdateUserRequest {
 
     @Size(max = 200, message = "Full name must be at most 200 characters long")
     private String fullName;
+    // RU, KK or EN; null leaves it unchanged.
+    private Language language;
 }

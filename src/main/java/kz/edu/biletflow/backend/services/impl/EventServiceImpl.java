@@ -9,6 +9,7 @@ import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.mappers.EventMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrderRepository;
@@ -31,14 +32,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class EventServiceImpl implements EventService {
     private static final Long ANONYMOUS_ID = -1L;
-    private static final DateTimeFormatter NOTIFICATION_DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
 
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
@@ -152,13 +151,9 @@ public class EventServiceImpl implements EventService {
         if (!Objects.equals(oldStart, saved.getStartTime()) || !Objects.equals(oldEnd, saved.getEndTime())
                 || !Objects.equals(oldVenueId, saved.getVenue().getId())) {
             notificationService.notifyUsers(ticketRepository.findOwnerIdsByEvent(eventId, TicketStatus.VALID),
-                    NotificationType.EVENT_UPDATED, "Details changed for " + saved.getTitle(),
-                    "The time or place of \"" + saved.getTitle() + "\" has changed. It now takes place on "
-                            + saved.getStartTime().format(NOTIFICATION_DATE_TIME) + " (Almaty time) at "
-                            + saved.getVenue().getName() + ", " + saved.getVenue().getAddress()
-                            + ". Your ticket stays valid."
-                            + " The emailed copy of this message has the updated calendar file (.ics) attached:"
-                            + " open it to update the entry in your calendar.",
+                    NotificationType.EVENT_UPDATED, Text.of("event.updated.title", saved.getTitle()),
+                    Text.of("event.updated.body", saved.getTitle(), saved.getStartTime(),
+                            saved.getVenue().getName() + ", " + saved.getVenue().getAddress()),
                     eventId);
         }
         return eventMapper.toDto(saved);
@@ -214,11 +209,8 @@ public class EventServiceImpl implements EventService {
 
         // Before the update below: afterwards nobody holds a VALID ticket any more.
         notificationService.notifyUsers(ticketRepository.findOwnerIdsByEvent(eventId, TicketStatus.VALID),
-                NotificationType.EVENT_CANCELLED, saved.getTitle() + " has been cancelled",
-                "The organizer cancelled \"" + saved.getTitle() + "\", so your ticket is no longer valid."
-                        + " You can contact the organizer by opening a support case from your order."
-                        + " The emailed copy of this message has a calendar file (.ics) attached that marks the event"
-                        + " as cancelled in your calendar.",
+                NotificationType.EVENT_CANCELLED, Text.of("event.cancelled.title", saved.getTitle()),
+                Text.of("event.cancelled.body", saved.getTitle()),
                 eventId);
 
         // Cancelled tickets must not admit anyone; unpaid orders can no longer be paid.

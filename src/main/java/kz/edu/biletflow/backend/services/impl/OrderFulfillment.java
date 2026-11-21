@@ -1,7 +1,8 @@
 package kz.edu.biletflow.backend.services.impl;
 
 import kz.edu.biletflow.backend.entities.*;
-import kz.edu.biletflow.backend.mappers.SeatLabels;
+import kz.edu.biletflow.backend.i18n.Text;
+import kz.edu.biletflow.backend.i18n.Translator;
 import kz.edu.biletflow.backend.repositories.PaymentRepository;
 import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.services.NotificationService;
@@ -12,17 +13,14 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 // What happens once an order is paid, however it was paid. Callers hold the order's row lock.
 @Component
 @RequiredArgsConstructor
 public class OrderFulfillment {
-    private static final DateTimeFormatter EMAIL_DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
 
     private final PaymentRepository paymentRepository;
     private final TicketRepository ticketRepository;
@@ -83,35 +81,33 @@ public class OrderFulfillment {
     private void notifyOrderConfirmed(Order order, boolean demonstrationPayment) {
         Event event = order.getEvent();
         int tickets = order.getItems().stream().mapToInt(OrderItem::getQuantity).sum();
-        String paymentNote = demonstrationPayment && order.getTotalAmount().signum() > 0
-                ? "\n\nThis is a demonstration payment: no real money was charged."
-                : "";
         notificationService.notifyUser(order.getUser().getId(), NotificationType.ORDER_CONFIRMED,
-                "Your tickets for " + event.getTitle(),
-                "Order #" + order.getId() + " for \"" + event.getTitle() + "\" is confirmed."
-                        + "\n\nWhen: " + event.getStartTime().format(EMAIL_DATE_TIME) + " (Almaty time)"
-                        + "\nWhere: " + event.getVenue().getName() + ", " + event.getVenue().getAddress()
-                        + "\nTickets: " + tickets
-                        + places(order)
-                        + "\nTotal: " + order.getTotalAmount() + " KZT"
-                        + "\n\nYour tickets are in your BiletFlow account, and the emailed copy of this message has them attached as a PDF,"
-                        + " together with a calendar file (.ics) for the event."
-                        + paymentNote,
+                Text.of("order.confirmed.title", event.getTitle()),
+                Text.of("order.confirmed.body", order.getId(), event.getTitle(), event.getStartTime(),
+                                event.getVenue().getName() + ", " + event.getVenue().getAddress(), tickets)
+                        .and(places(order))
+                        .and("order.confirmed.total", order.getTotalAmount())
+                        .andIf(demonstrationPayment && order.getTotalAmount().signum() > 0, "order.confirmed.demo"),
                 order.getId());
     }
 
     // Assigned seating: "Seats: Stalls, row A, seat 5; ..." (a standing section appears by name). Empty otherwise.
-    private static String places(Order order) {
-        List<String> places = order.getItems().stream()
-                .map(item -> SeatLabels.describe(item.getSectionName(), item.getRowLabel(), item.getSeatNumber()))
+    private static Text places(Order order) {
+        List<Text> places = order.getItems().stream()
+                .map(item -> Translator.seatText(item.getSectionName(), item.getRowLabel(), item.getSeatNumber()))
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
         if (places.isEmpty()) {
-            return "";
+            return Text.raw("");
         }
         int shown = 20;
-        return "\nSeats: " + places.stream().limit(shown).collect(Collectors.joining("; "))
-                + (places.size() > shown ? " and " + (places.size() - shown) + " more" : "");
+        Text joined = places.getFirst();
+        for (Text place : places.subList(1, Math.min(shown, places.size()))) {
+            joined = joined.and(Text.raw("; ")).and(place);
+        }
+        return places.size() > shown
+                ? Text.of("order.confirmed.seatsMore", joined, places.size() - shown)
+                : Text.of("order.confirmed.seats", joined);
     }
 }

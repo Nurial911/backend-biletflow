@@ -31,7 +31,9 @@ class CalendarExportIntegrationTest extends ApiIntegrationTest {
                 "startTime", start.toString(),
                 "endTime", start.plusHours(3).toString())).assertStatus(200);
 
-        Response response = call(HttpMethod.GET, "/api/events/" + event + "/calendar.ics", null, null).assertStatus(200);
+        // Anonymous, so Accept-Language picks the language of the file's own wording ("Event page: ...").
+        Response response = call(HttpMethod.GET, "/api/events/" + event + "/calendar.ics", null, null, "en")
+                .assertStatus(200);
         assertThat(response.contentType().toString()).startsWith("text/calendar");
         String raw = response.text();
 

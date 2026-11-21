@@ -4,6 +4,7 @@ import kz.edu.biletflow.backend.dtos.*;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Translator;
 import kz.edu.biletflow.backend.mappers.EventMapper;
 import kz.edu.biletflow.backend.mappers.TicketMapper;
 import kz.edu.biletflow.backend.repositories.*;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +31,7 @@ public class CheckInServiceImpl implements CheckInService {
     private final EventMapper eventMapper;
     private final TicketMapper ticketMapper;
     private final AuditService auditService;
+    private final Translator translator;
 
     @Override
     @Transactional(readOnly = true)
@@ -41,33 +44,34 @@ public class CheckInServiceImpl implements CheckInService {
     @Transactional
     public CheckInResponse scan(Long eventId, String code, Long staffId, boolean isPlatformAdmin) {
         Event event = getCheckInEvent(eventId, staffId, isPlatformAdmin);
+        Locale locale = translator.localeOf(staffId);
 
         // A Campaign QR code is a link, so the lookup below would reject it anyway. This tells staff why (SRS 4.14).
         if (code.contains("promo=")) {
-            return new CheckInResponse(CheckInResult.INVALID, "This is a promotional QR code, not a ticket", null, null);
+            return new CheckInResponse(CheckInResult.INVALID, translator.get(locale, "checkin.promo"), null, null);
         }
 
         // Locked so two scanners reading the same ticket at once can't both admit it.
         Optional<Ticket> found = ticketRepository.findByCodeForUpdate(code.trim());
         if (found.isEmpty()) {
-            return new CheckInResponse(CheckInResult.INVALID, "Unknown ticket code", null, null);
+            return new CheckInResponse(CheckInResult.INVALID, translator.get(locale, "checkin.unknown"), null, null);
         }
         Ticket ticket = found.get();
         if (!ticket.getEvent().getId().equals(event.getId())) {
             // Don't show details of a ticket that belongs to another organizer's event.
-            return new CheckInResponse(CheckInResult.WRONG_EVENT, "This ticket is for a different event", null, null);
+            return new CheckInResponse(CheckInResult.WRONG_EVENT, translator.get(locale, "checkin.wrongEvent"), null, null);
         }
         // Its own result, as SRS 4.8 lists refunded apart from cancelled; neither admits.
         if (ticket.getStatus() == TicketStatus.REFUNDED) {
-            return new CheckInResponse(CheckInResult.REFUNDED, "This ticket was refunded",
+            return new CheckInResponse(CheckInResult.REFUNDED, translator.get(locale, "checkin.refunded"),
                     ticket.getUsedAt(), ticketMapper.toDto(ticket));
         }
         if (event.getStatus() == EventStatus.CANCELLED || ticket.getStatus() == TicketStatus.CANCELLED) {
-            return new CheckInResponse(CheckInResult.CANCELLED, "This ticket is cancelled",
+            return new CheckInResponse(CheckInResult.CANCELLED, translator.get(locale, "checkin.cancelled"),
                     ticket.getUsedAt(), ticketMapper.toDto(ticket));
         }
         if (ticket.getStatus() == TicketStatus.USED) {
-            return new CheckInResponse(CheckInResult.ALREADY_USED, "This ticket has already been used",
+            return new CheckInResponse(CheckInResult.ALREADY_USED, translator.get(locale, "checkin.alreadyUsed"),
                     ticket.getUsedAt(), ticketMapper.toDto(ticket));
         }
 
@@ -76,7 +80,7 @@ public class CheckInServiceImpl implements CheckInService {
         record(ticket, staffId, CheckInAction.CHECK_IN);
         auditService.record(staffId, AuditAction.TICKET_CHECKED_IN, ticket.getId(), eventId,
                 "Ticket #" + ticket.getId() + " checked in");
-        return new CheckInResponse(CheckInResult.CHECKED_IN, "Checked in",
+        return new CheckInResponse(CheckInResult.CHECKED_IN, translator.get(locale, "checkin.checkedIn"),
                 ticket.getUsedAt(), ticketMapper.toDto(ticket));
     }
 

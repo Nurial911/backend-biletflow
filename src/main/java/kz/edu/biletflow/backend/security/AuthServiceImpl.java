@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.security;
 
 import kz.edu.biletflow.backend.dtos.RegisterUserRequest;
 import kz.edu.biletflow.backend.dtos.UserResponse;
+import kz.edu.biletflow.backend.entities.Language;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BadCredentialsException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
@@ -10,6 +11,7 @@ import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.AccountEmailService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +56,8 @@ public class AuthServiceImpl {
 
         newUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         newUser.setRole(User.Role.ATTENDEE);
+        newUser.setLanguage(request.getLanguage() != null
+                ? request.getLanguage() : Language.of(LocaleContextHolder.getLocale()));
 
         User savedUser = userRepository.save(newUser);
         accountEmailService.sendVerification(savedUser);

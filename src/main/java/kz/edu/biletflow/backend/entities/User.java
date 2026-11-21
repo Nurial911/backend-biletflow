@@ -69,6 +69,11 @@ public class User {
     @Column(name = "suspension_reason", length = 500)
     private String suspensionReason;
 
+    // Language of the emails, notifications, tickets and scan results this user gets (SRS section 7).
+    @Enumerated(EnumType.STRING)
+    @Column(name = "language", nullable = false, length = 2)
+    private Language language = Language.DEFAULT;
+
     public enum Role {
         ATTENDEE, ORGANIZER, EVENT_ADMIN, PLATFORM_ADMIN
     }

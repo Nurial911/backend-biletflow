@@ -7,6 +7,7 @@ import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.mappers.OrganizerProfileMapper;
 import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
 import kz.edu.biletflow.backend.repositories.PayoutAccountRepository;
@@ -106,8 +107,10 @@ public class OrganizerProfileServiceImpl implements OrganizerProfileService {
                 approved ? AuditAction.ORGANIZER_VERIFICATION_APPROVED : AuditAction.ORGANIZER_VERIFICATION_REJECTED,
                 profileId, null, "Simulated identity verification " + outcome + "." + reason);
         notificationService.notifyUser(profile.getUser().getId(), NotificationType.ORGANIZER_VERIFICATION,
-                "Your organizer verification was " + outcome,
-                "Your organizer identity verification was " + outcome + "." + reason, null);
+                Text.of("organizer.verification." + outcome + ".title"),
+                Text.of("organizer.verification." + outcome + ".body")
+                        .andIf(note != null && !note.isBlank(), "organizer.verification.note", note != null ? note.trim() : null),
+                null);
         return organizerProfileMapper.toDto(profile);
     }
 
