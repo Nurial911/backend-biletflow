@@ -1,6 +1,6 @@
 package kz.edu.biletflow.backend.services.impl;
 
-import kz.edu.biletflow.backend.mappers.SeatLabels;
+import kz.edu.biletflow.backend.i18n.Translator;
 import com.google.zxing.common.BitMatrix;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
@@ -26,8 +26,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * A4 print-optimized tickets (SRS 4.7), one per page. Everything is pure black on white, so a
@@ -43,28 +43,29 @@ public class TicketPdfGenerator {
 
     private static final float MARGIN = 56f;
     private static final float PAGE_WIDTH = PageSize.A4.getWidth();
-    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
 
     private static final BaseFont REGULAR = embeddedFont("LiberationSans-Regular.ttf");
     private static final BaseFont BOLD = embeddedFont("LiberationSans-Bold.ttf");
 
     private final QrCodeGenerator qrCodeGenerator;
+    private final Translator translator;
 
-    public byte[] generate(List<Ticket> tickets) {
+    // Labels in the given language; the event's and attendee's own texts stay as written.
+    public byte[] generate(List<Ticket> tickets, Locale locale) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4, MARGIN, MARGIN, MARGIN, MARGIN);
         PdfWriter writer = PdfWriter.getInstance(document, out);
-        document.addTitle("BiletFlow ticket");
+        document.addTitle(translator.get(locale, "pdf.title"));
         document.open();
         for (Ticket ticket : tickets) {
             document.newPage();
-            drawTicket(writer.getDirectContent(), ticket);
+            drawTicket(writer.getDirectContent(), ticket, locale);
         }
         document.close();
         return out.toByteArray();
     }
 
-    private void drawTicket(PdfContentByte canvas, Ticket ticket) {
+    private void drawTicket(PdfContentByte canvas, Ticket ticket, Locale locale) {
         Event event = ticket.getEvent();
 
         ColumnText text = new ColumnText(canvas);
@@ -78,17 +79,18 @@ public class TicketPdfGenerator {
 
         PdfPTable details = new PdfPTable(new float[]{1, 3});
         details.setWidthPercentage(100);
-        addRow(details, "Date and time", dateTime(event));
-        addRow(details, "Venue", event.getVenue().getName() + "\n" + event.getVenue().getAddress());
-        addRow(details, "Ticket type", ticket.getTicketType().getName());
-        String place = SeatLabels.describe(ticket.getSectionName(), ticket.getRowLabel(), ticket.getSeatNumber());
+        addRow(details, label(locale, "pdf.dateTime"), dateTime(event, locale));
+        addRow(details, label(locale, "pdf.venue"), event.getVenue().getName() + "\n" + event.getVenue().getAddress());
+        addRow(details, label(locale, "pdf.ticketType"), ticket.getTicketType().getName());
+        String place = translator.seatLabel(ticket.getSectionName(), ticket.getRowLabel(), ticket.getSeatNumber(), locale);
         if (place != null) {
-            addRow(details, ticket.getRowLabel() != null ? "Seat" : "Section", place);
+            addRow(details, label(locale, ticket.getRowLabel() != null ? "pdf.seat" : "pdf.section"), place);
         }
-        addRow(details, "Attendee", ticket.getAttendeeName() != null
+        addRow(details, label(locale, "pdf.attendee"), ticket.getAttendeeName() != null
                 ? ticket.getAttendeeName() : ticket.getOwner().getEmail());
-        addRow(details, "Ticket ID", ticket.getCode());
-        addRow(details, "Status", ticket.getStatus() == TicketStatus.USED ? "Checked in" : "Valid");
+        addRow(details, label(locale, "pdf.ticketId"), ticket.getCode());
+        addRow(details, label(locale, "pdf.status"),
+                label(locale, ticket.getStatus() == TicketStatus.USED ? "pdf.status.used" : "pdf.status.valid"));
         text.addElement(details);
         try {
             text.go();
@@ -98,7 +100,7 @@ public class TicketPdfGenerator {
 
         drawQr(canvas, qrCodeGenerator.toModules(ticket.getCode()));
         ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
-                new Phrase("Show this code at the entrance. Printed and digital copies are one and the same ticket.",
+                new Phrase(label(locale, "pdf.footer"),
                         new Font(REGULAR, 10)),
                 PAGE_WIDTH / 2, QR_BOTTOM - 14, 0);
     }
@@ -137,10 +139,14 @@ public class TicketPdfGenerator {
         return cell;
     }
 
-    private String dateTime(Event event) {
-        String start = event.getStartTime().format(DATE_TIME);
-        return (event.getEndTime() != null ? start + " to " + event.getEndTime().format(DATE_TIME) : start)
-                + " (Almaty time)";
+    private String dateTime(Event event, Locale locale) {
+        return event.getEndTime() != null
+                ? translator.get(locale, "pdf.whenRange", event.getStartTime(), event.getEndTime())
+                : translator.get(locale, "pdf.when", event.getStartTime());
+    }
+
+    private String label(Locale locale, String key) {
+        return translator.get(locale, key);
     }
 
     private static BaseFont embeddedFont(String file) {

@@ -4,6 +4,7 @@ import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.EventPhase;
 import kz.edu.biletflow.backend.entities.EventStatus;
 import kz.edu.biletflow.backend.entities.Venue;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,8 @@ import java.time.zone.ZoneOffsetTransition;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import kz.edu.biletflow.backend.i18n.Translator;
+import java.util.Locale;
 
 /**
  * Calendar entries for events (SRS 4.11): an iCalendar (RFC 5545) file and "add to calendar" links for
@@ -27,6 +30,7 @@ import java.util.stream.Stream;
  * inside a transaction.
  */
 @Component
+@RequiredArgsConstructor
 public class EventCalendar {
     // Event times are stored as Almaty wall-clock time without a zone (see CLAUDE.md).
     public static final ZoneId EVENT_ZONE = ZoneId.of("Asia/Almaty");
@@ -43,6 +47,8 @@ public class EventCalendar {
     @Value("${app.frontend-url}")
     private String frontendUrl;
 
+    private final Translator translator;
+
     public String fileName(Event event) {
         return "biletflow-event-" + event.getId() + ".ics";
     }
@@ -51,7 +57,7 @@ public class EventCalendar {
         return frontendUrl.replaceAll("/+$", "") + "/events/" + event.getId();
     }
 
-    public byte[] ics(Event event) {
+    public byte[] ics(Event event, Locale locale) {
         boolean cancelled = event.getStatus() == EventStatus.CANCELLED;
         LocalDateTime start = event.getStartTime();
         LocalDateTime end = EventPhase.effectiveEnd(event);
@@ -72,8 +78,9 @@ public class EventCalendar {
         line(out, "SEQUENCE:" + event.getCalendarSequence());
         line(out, "DTSTART;TZID=" + zone + ":" + LOCAL.format(start));
         line(out, "DTEND;TZID=" + zone + ":" + LOCAL.format(end));
-        line(out, "SUMMARY:" + text((cancelled ? "Cancelled: " : "") + event.getTitle()));
-        line(out, "DESCRIPTION:" + text(description(event, Integer.MAX_VALUE)));
+        line(out, "SUMMARY:" + text(cancelled ? translator.get(locale, "calendar.cancelledTitle", event.getTitle())
+                : event.getTitle()));
+        line(out, "DESCRIPTION:" + text(description(event, Integer.MAX_VALUE, locale)));
         line(out, "LOCATION:" + text(location(event.getVenue())));
         line(out, "URL:" + eventUrl(event));
         line(out, "STATUS:" + (cancelled ? "CANCELLED" : "CONFIRMED"));
@@ -83,22 +90,22 @@ public class EventCalendar {
         return out.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    public String googleCalendarLink(Event event) {
+    public String googleCalendarLink(Event event, Locale locale) {
         return "https://calendar.google.com/calendar/render?action=TEMPLATE"
                 + "&text=" + encode(event.getTitle())
                 + "&dates=" + LOCAL.format(event.getStartTime()) + "/" + LOCAL.format(EventPhase.effectiveEnd(event))
                 + "&ctz=" + encode(EVENT_ZONE.getId())
-                + "&details=" + encode(description(event, MAX_LINK_DESCRIPTION))
+                + "&details=" + encode(description(event, MAX_LINK_DESCRIPTION, locale))
                 + "&location=" + encode(location(event.getVenue()));
     }
 
     // outlook.live.com for personal accounts, outlook.office.com for work and school accounts.
-    public String outlookLink(Event event, String host) {
+    public String outlookLink(Event event, String host, Locale locale) {
         return "https://" + host + "/calendar/0/action/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent"
                 + "&subject=" + encode(event.getTitle())
                 + "&startdt=" + encode(withOffset(event.getStartTime()))
                 + "&enddt=" + encode(withOffset(EventPhase.effectiveEnd(event)))
-                + "&body=" + encode(description(event, MAX_LINK_DESCRIPTION))
+                + "&body=" + encode(description(event, MAX_LINK_DESCRIPTION, locale))
                 + "&location=" + encode(location(event.getVenue()));
     }
 
@@ -113,17 +120,17 @@ public class EventCalendar {
         return "event-" + event.getId() + "@" + (host != null ? host : "biletflow");
     }
 
-    private String description(Event event, int maxDescription) {
+    private String description(Event event, int maxDescription, Locale locale) {
         StringBuilder text = new StringBuilder();
         if (event.getStatus() == EventStatus.CANCELLED) {
-            text.append("This event has been cancelled by the organizer.\n\n");
+            text.append(translator.get(locale, "calendar.cancelledNote"));
         }
         String own = event.getDescription();
         if (own != null && !own.isBlank()) {
             own = own.strip();
             text.append(own.length() > maxDescription ? own.substring(0, maxDescription) + "..." : own).append("\n\n");
         }
-        return text.append("Event page: ").append(eventUrl(event)).toString();
+        return text.append(translator.get(locale, "calendar.eventPage", eventUrl(event))).toString();
     }
 
     private static String location(Venue venue) {

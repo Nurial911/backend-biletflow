@@ -1,5 +1,6 @@
 package kz.edu.biletflow.backend.dtos;
 
+import kz.edu.biletflow.backend.entities.Language;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -15,4 +16,5 @@ public class UserResponse {
     private LocalDateTime suspendedAt;
     private String suspensionReason;
     private LocalDateTime createdAt;
+    private Language language;
 }

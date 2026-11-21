@@ -5,6 +5,7 @@ import kz.edu.biletflow.backend.entities.Ticket;
 import kz.edu.biletflow.backend.entities.TicketStatus;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Translator;
 import kz.edu.biletflow.backend.mappers.TicketMapper;
 import kz.edu.biletflow.backend.repositories.TicketRepository;
 import kz.edu.biletflow.backend.services.TicketService;
@@ -23,6 +24,7 @@ public class TicketServiceImpl implements TicketService {
     private final TicketMapper ticketMapper;
     private final QrCodeGenerator qrCodeGenerator;
     private final TicketPdfGenerator ticketPdfGenerator;
+    private final Translator translator;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,7 +56,7 @@ public class TicketServiceImpl implements TicketService {
         if (ticket.getStatus() == TicketStatus.REFUNDED) {
             throw new BusinessRuleViolationException("This ticket was refunded and can no longer be printed");
         }
-        return ticketPdfGenerator.generate(List.of(ticket));
+        return ticketPdfGenerator.generate(List.of(ticket), translator.localeOf(requesterId));
     }
 
     private Ticket getVisibleTicket(Long ticketId, Long requesterId, boolean isPlatformAdmin) {

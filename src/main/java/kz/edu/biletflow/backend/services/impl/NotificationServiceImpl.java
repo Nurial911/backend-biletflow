@@ -4,6 +4,8 @@ import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.NotificationResponse;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
+import kz.edu.biletflow.backend.i18n.Translator;
 import kz.edu.biletflow.backend.mappers.NotificationMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.NotificationRepository;
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @Slf4j
@@ -43,26 +46,27 @@ public class NotificationServiceImpl implements NotificationService {
     private final EventCalendar eventCalendar;
     private final MailGateway mailGateway;
     private final NotificationMapper notificationMapper;
+    private final Translator translator;
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void notifyUser(Long userId, NotificationType type, String title, String body, @Nullable Long orderId) {
+    public void notifyUser(Long userId, NotificationType type, Text title, Text body, @Nullable Long orderId) {
         userRepository.findById(userId).ifPresent(user -> notificationRepository.save(build(user, type, title, body, orderId)));
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body) {
+    public void notifyUsers(Collection<Long> userIds, NotificationType type, Text title, Text body) {
         saveForAll(userIds, type, title, body, null);
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body, Long eventId) {
+    public void notifyUsers(Collection<Long> userIds, NotificationType type, Text title, Text body, Long eventId) {
         saveForAll(userIds, type, title, body, eventId);
     }
 
-    private void saveForAll(Collection<Long> userIds, NotificationType type, String title, String body,
+    private void saveForAll(Collection<Long> userIds, NotificationType type, Text title, Text body,
                             @Nullable Long eventId) {
         notificationRepository.saveAll(userRepository.findAllById(Set.copyOf(userIds)).stream()
                 .map(user -> {
@@ -143,6 +147,7 @@ public class NotificationServiceImpl implements NotificationService {
     // and the event's calendar file for a confirmation, a change or a cancellation (SRS 4.11).
     private List<OutgoingMail.Attachment> attachments(Notification notification) {
         List<OutgoingMail.Attachment> attachments = new ArrayList<>();
+        Locale locale = translator.localeOf(notification.getUserId());
         Long calendarEventId = notification.getEventId();
         if (notification.getOrderId() != null) {
             // Only tickets that still admit (or did): an email queued before a cancellation or refund leaves them out.
@@ -150,7 +155,7 @@ public class NotificationServiceImpl implements NotificationService {
                     notification.getOrderId(), List.of(TicketStatus.VALID, TicketStatus.USED));
             if (!tickets.isEmpty()) {
                 attachments.add(new OutgoingMail.Attachment("tickets-order-" + notification.getOrderId() + ".pdf",
-                        "application/pdf", ticketPdfGenerator.generate(tickets)));
+                        "application/pdf", ticketPdfGenerator.generate(tickets, locale)));
                 if (NotificationType.ORDER_CONFIRMED.name().equals(notification.getType())) {
                     calendarEventId = tickets.getFirst().getEvent().getId();
                 }
@@ -158,12 +163,16 @@ public class NotificationServiceImpl implements NotificationService {
         }
         if (calendarEventId != null) {
             eventRepository.findById(calendarEventId).ifPresent(event -> attachments.add(new OutgoingMail.Attachment(
-                    eventCalendar.fileName(event), EventCalendar.CONTENT_TYPE, eventCalendar.ics(event))));
+                    eventCalendar.fileName(event), EventCalendar.CONTENT_TYPE, eventCalendar.ics(event, locale))));
         }
         return attachments;
     }
 
-    private Notification build(User user, NotificationType type, String title, String body, @Nullable Long orderId) {
+    // Rendered now, in the recipient's language: the row is what the user reads in the app and in the email.
+    private Notification build(User user, NotificationType type, Text titleText, Text bodyText, @Nullable Long orderId) {
+        Locale locale = Translator.localeOf(user);
+        String title = translator.render(titleText, locale);
+        String body = translator.render(bodyText, locale);
         Notification notification = new Notification();
         notification.setUserId(user.getId());
         notification.setRecipientEmail(user.getEmail());

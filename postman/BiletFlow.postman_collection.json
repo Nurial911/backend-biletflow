@@ -152,7 +152,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{organizerEmail}}\",\n  \"password\": \"{{password}}\",\n  \"fullName\": \"Aigerim Organizer\"\n}",
+              "raw": "{\n  \"email\": \"{{organizerEmail}}\",\n  \"password\": \"{{password}}\",\n  \"fullName\": \"Aigerim Organizer\",\n  \"language\": \"EN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -265,7 +265,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{attendeeEmail}}\",\n  \"password\": \"{{password}}\",\n  \"fullName\": \"Dana Serikova\"\n}",
+              "raw": "{\n  \"email\": \"{{attendeeEmail}}\",\n  \"password\": \"{{password}}\",\n  \"fullName\": \"Dana Serikova\",\n  \"language\": \"EN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -322,7 +322,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{strangerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{strangerEmail}}\",\n  \"password\": \"{{password}}\",\n  \"language\": \"EN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4861,7 +4861,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{suspendEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"email\": \"{{suspendEmail}}\",\n  \"password\": \"{{password}}\",\n  \"language\": \"EN\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

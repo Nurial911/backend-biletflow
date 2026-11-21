@@ -11,6 +11,7 @@ import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.mappers.SupportMapper;
 import kz.edu.biletflow.backend.repositories.*;
 import kz.edu.biletflow.backend.services.AuditService;
@@ -74,7 +75,7 @@ public class SupportServiceImpl implements SupportService {
 
         saveMessage(saved, requester, false, request.getMessage());
         notifyUsers(handlerRecipients(saved), userId, NotificationType.SUPPORT_MESSAGE,
-                "New support case #" + saved.getId() + ": " + saved.getSubject(), excerpt(request.getMessage()));
+                Text.of("support.newCase.title", saved.getId(), saved.getSubject()), Text.raw(excerpt(request.getMessage())));
         return toDetail(saved, true);
     }
 
@@ -141,7 +142,7 @@ public class SupportServiceImpl implements SupportService {
 
         Set<Long> recipients = requester ? handlerRecipients(supportCase) : Set.of(supportCase.getRequester().getId());
         notifyUsers(recipients, userId, NotificationType.SUPPORT_MESSAGE,
-                "New reply on support case #" + caseId + ": " + supportCase.getSubject(), excerpt(body));
+                Text.of("support.reply.title", caseId, supportCase.getSubject()), Text.raw(excerpt(body)));
         return toDetail(supportCase, handler);
     }
 
@@ -158,7 +159,7 @@ public class SupportServiceImpl implements SupportService {
         supportCase.setUpdatedAt(LocalDateTime.now());
         audit(userId, AuditAction.SUPPORT_CASE_ASSIGNED, supportCase, "Support case #" + caseId + " assigned");
         notifyUsers(Set.of(assignee.getId()), userId, NotificationType.SUPPORT_ASSIGNED,
-                "Support case #" + caseId + " was assigned to you", supportCase.getSubject());
+                Text.of("support.assigned.title", caseId), Text.raw(supportCase.getSubject()));
         return toDetail(supportCase, true);
     }
 
@@ -175,8 +176,8 @@ public class SupportServiceImpl implements SupportService {
             audit(userId, AuditAction.SUPPORT_CASE_STATUS_CHANGED, supportCase,
                     "Support case #" + caseId + " status " + previous + " -> " + status);
             notifyUsers(Set.of(supportCase.getRequester().getId()), userId, NotificationType.SUPPORT_STATUS,
-                    "Support case #" + caseId + " is now " + status,
-                    "The status of your support case \"" + supportCase.getSubject() + "\" changed to " + status + ".");
+                    Text.of("support.status.title", caseId, Text.of("support.status." + status)),
+                    Text.of("support.status.body", supportCase.getSubject(), Text.of("support.status." + status)));
         }
         return toDetail(supportCase, true);
     }
@@ -192,7 +193,7 @@ public class SupportServiceImpl implements SupportService {
         supportCase.setUpdatedAt(LocalDateTime.now());
         audit(userId, AuditAction.SUPPORT_CASE_ESCALATED, supportCase, "Support case #" + caseId + " escalated");
         notifyUsers(userRepository.findIdsByRole(User.Role.PLATFORM_ADMIN), userId, NotificationType.SUPPORT_ASSIGNED,
-                "Support case #" + caseId + " was escalated", supportCase.getSubject());
+                Text.of("support.escalated.title", caseId), Text.raw(supportCase.getSubject()));
         return toDetail(supportCase, true);
     }
 
@@ -290,7 +291,7 @@ public class SupportServiceImpl implements SupportService {
                 : new LinkedHashSet<>(userRepository.findIdsByRole(User.Role.PLATFORM_ADMIN));
     }
 
-    private void notifyUsers(Iterable<Long> recipients, Long actorId, NotificationType type, String title, String body) {
+    private void notifyUsers(Iterable<Long> recipients, Long actorId, NotificationType type, Text title, Text body) {
         Set<Long> others = new LinkedHashSet<>();
         recipients.forEach(others::add);
         others.remove(actorId); // nobody needs telling about their own action

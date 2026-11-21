@@ -9,6 +9,7 @@ import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.PaymentProviderException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.repositories.OrderRepository;
 import kz.edu.biletflow.backend.repositories.PaymentSessionRepository;
 import kz.edu.biletflow.backend.services.AuditService;
@@ -210,7 +211,7 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
         if (session.getStatus() != PaymentSessionStatus.OPEN) {
             return CaptureDecision.NOTHING;
         }
-        String problem = whyNotAcceptable(order, transaction);
+        Problem problem = whyNotAcceptable(order, transaction);
         if (problem != null) {
             markForRelease(session, order, transaction, problem);
             return CaptureDecision.RELEASE;
@@ -240,7 +241,7 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
         if (session.getStatus() != PaymentSessionStatus.OPEN && session.getStatus() != PaymentSessionStatus.CAPTURING) {
             return;
         }
-        String problem = whyNotAcceptable(order, transaction);
+        Problem problem = whyNotAcceptable(order, transaction);
         if (problem != null) {
             markForRelease(session, order, transaction, problem);
             return;
@@ -257,7 +258,8 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
     }
 
     // The bank holds or took money for something we can no longer sell, for example a cancelled or expired order.
-    private void markForRelease(PaymentSession session, Order order, Transaction transaction, String reason) {
+    private void markForRelease(PaymentSession session, Order order, Transaction transaction, Problem problem) {
+        String reason = problem.reason();
         session.setStatus(PaymentSessionStatus.RELEASE_DUE);
         session.setTransactionId(transaction.id());
         session.setReleaseReason(shorten(reason));
@@ -266,9 +268,8 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
         auditService.record(order.getUser().getId(), AuditAction.PAYMENT_FAILED, payment.getId(), order.getEvent().getId(),
                 "Halyk ePay" + testLabel() + " payment for order #" + order.getId() + " not accepted: " + reason);
         notificationService.notifyUser(order.getUser().getId(), NotificationType.PAYMENT_FAILED,
-                "Payment not accepted for " + order.getEvent().getTitle(),
-                "We could not accept your payment for order #" + order.getId() + ": " + reason
-                        + ". No tickets were issued and the money is being returned to your card.", null);
+                Text.of("payment.notAccepted.title", order.getEvent().getTitle()),
+                Text.of("payment.notAccepted.body", order.getId(), Text.of(problem.key())), null);
     }
 
     private void release(Long sessionId, Transaction transaction) {
@@ -297,9 +298,8 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
         auditService.record(order.getUser().getId(), AuditAction.PAYMENT_FAILED, payment.getId(), order.getEvent().getId(),
                 "Halyk ePay" + testLabel() + " payment for order #" + order.getId() + " declined");
         notificationService.notifyUser(order.getUser().getId(), NotificationType.PAYMENT_FAILED,
-                "Payment failed for " + order.getEvent().getTitle(),
-                "The bank declined the payment for order #" + order.getId() + ", so no tickets were issued."
-                        + " You can try again until the reservation expires.", null);
+                Text.of("payment.failed.title", order.getEvent().getTitle()),
+                Text.of("payment.bankDeclined.body", order.getId()), null);
     }
 
     private void abandonIfOverdue(Long sessionId) {
@@ -319,9 +319,9 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
                 .filter(o -> o.getUser().getId().equals(userId))
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
         LocalDateTime now = LocalDateTime.now();
-        String problem = whyNotPayable(order, now);
+        Problem problem = whyNotPayable(order, now);
         if (problem != null) {
-            throw new BusinessRuleViolationException(problem);
+            throw new BusinessRuleViolationException(problem.reason());
         }
 
         // The reservation has to outlast the bank's page, but repeat visits can't hold tickets forever.
@@ -347,32 +347,37 @@ public class PaymentSessionServiceImpl implements PaymentSessionService {
         return orderRepository.findByIdForUpdate(sessionRepository.findOrderIdById(sessionId)).orElseThrow();
     }
 
-    private String whyNotPayable(Order order, LocalDateTime now) {
+    // reason: English, for the API error, the payment record and the audit log; key: the buyer's notification.
+    private record Problem(String reason, String key) {
+    }
+
+    private Problem whyNotPayable(Order order, LocalDateTime now) {
         if (order.getStatus() != OrderStatus.PENDING) {
-            return "Only a pending order can be paid, this order is " + order.getStatus();
+            return new Problem("Only a pending order can be paid, this order is " + order.getStatus(),
+                    "payment.problem.notPending");
         }
         if (!order.getExpiresAt().isAfter(now)) {
-            return "The order has expired, please create a new one";
+            return new Problem("The order has expired, please create a new one", "payment.problem.expired");
         }
         if (order.getEvent().getStatus() != EventStatus.PUBLISHED || order.getEvent().isSuspended()) {
-            return "The event is no longer available";
+            return new Problem("The event is no longer available", "payment.problem.eventUnavailable");
         }
         if (!order.getEvent().isPaidSalesActive()) {
-            return "Paid sales for this event are suspended";
+            return new Problem("Paid sales for this event are suspended", "payment.problem.salesSuspended");
         }
         return null;
     }
 
-    private String whyNotAcceptable(Order order, Transaction transaction) {
-        String problem = whyNotPayable(order, LocalDateTime.now());
+    private Problem whyNotAcceptable(Order order, Transaction transaction) {
+        Problem problem = whyNotPayable(order, LocalDateTime.now());
         if (problem != null) {
             return problem;
         }
         if (transaction.amount().compareTo(order.getTotalAmount()) != 0 || !"KZT".equals(transaction.currency())) {
-            return "The amount paid does not match the order";
+            return new Problem("The amount paid does not match the order", "payment.problem.amountMismatch");
         }
         if (!halykConfig.getTerminalId().equals(transaction.terminalId())) {
-            return "The payment was made to a different merchant";
+            return new Problem("The payment was made to a different merchant", "payment.problem.wrongMerchant");
         }
         return null;
     }

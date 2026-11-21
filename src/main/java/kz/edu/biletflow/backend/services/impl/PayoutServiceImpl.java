@@ -17,6 +17,7 @@ import kz.edu.biletflow.backend.entities.RefundStatus;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.mappers.PayoutMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
@@ -56,8 +57,6 @@ import java.util.UUID;
 public class PayoutServiceImpl implements PayoutService {
     private static final int BATCH_SIZE = 50;
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm");
-    private static final String SIMULATION_NOTE =
-            "This is a simulated payout (SRS 3.2): no real money is transferred.";
     private static final String NOTHING_TO_PAY = "Nothing to pay out: the event's paid orders were refunded.";
 
     private final PayoutRepository payoutRepository;
@@ -207,10 +206,8 @@ public class PayoutServiceImpl implements PayoutService {
             process(payout, adminId, false);
         }
         if (payout.getStatus() == Payout.Status.SCHEDULED) {
-            notifyOrganizer(payout, "Payout for " + title(payout) + " is scheduled again",
-                    "The hold on your payout for \"" + title(payout) + "\" was lifted. It is scheduled for "
-                            + payout.getScheduledFor().format(DATE_TIME) + " (Almaty time), currently estimated at "
-                            + kzt(payout.getAmount()) + ". " + SIMULATION_NOTE);
+            notifyOrganizer(payout, Text.of("payout.rescheduled.title", title(payout)),
+                    Text.of("payout.rescheduled.body", title(payout), payout.getScheduledFor(), amount(payout.getAmount())));
         }
         return payoutMapper.toDto(payout);
     }
@@ -260,10 +257,9 @@ public class PayoutServiceImpl implements PayoutService {
         payoutRepository.save(payout);
         audit(null, AuditAction.PAYOUT_SCHEDULED, payout, "Payout of about " + kzt(payout.getAmount())
                 + " scheduled for " + payout.getScheduledFor().format(DATE_TIME));
-        notifyOrganizer(payout, "Payout scheduled for " + title(payout),
-                "\"" + title(payout) + "\" has ended. Your payout is scheduled for "
-                        + payout.getScheduledFor().format(DATE_TIME) + " (Almaty time).\n\n" + breakdown(payout)
-                        + "\n\nThe final amount is calculated on that day, after any refunds. " + SIMULATION_NOTE);
+        notifyOrganizer(payout, Text.of("payout.scheduled.title", title(payout)),
+                Text.of("payout.scheduled.body", title(payout), payout.getScheduledFor())
+                        .and(breakdown(payout)).and("payout.scheduled.footer"));
         return true;
     }
 
@@ -288,7 +284,8 @@ public class PayoutServiceImpl implements PayoutService {
 
         Event event = payout.getEvent();
         if (event.getStatus() == EventStatus.CANCELLED) {
-            cancel(payout, actorId, "The event was cancelled: its paid orders are refunded instead of paid out.");
+            cancel(payout, actorId, "The event was cancelled: its paid orders are refunded instead of paid out.",
+                    "payout.cancelled.eventCancelled");
             return;
         }
         // The amount depends on it; checked again on the next run.
@@ -307,7 +304,7 @@ public class PayoutServiceImpl implements PayoutService {
 
         applyFigures(payout, sales(event));
         if (payout.getAmount().signum() <= 0) {
-            cancel(payout, actorId, NOTHING_TO_PAY);
+            cancel(payout, actorId, NOTHING_TO_PAY, "payout.cancelled.nothingToPay");
             return;
         }
         PayoutAccount account = payoutAccountRepository.findById(profile.getPayoutAccountId()).orElseThrow();
@@ -322,10 +319,9 @@ public class PayoutServiceImpl implements PayoutService {
 
         audit(actorId, AuditAction.PAYOUT_PAID, payout, "Simulated payout of " + kzt(payout.getAmount()) + " to "
                 + account.getBankName() + " ****" + account.getIbanLast4() + " (" + payout.getReference() + ")");
-        notifyOrganizer(payout, "Payout for " + title(payout) + " paid",
-                "Your payout for \"" + title(payout) + "\" was made to " + account.getBankName() + " ****"
-                        + account.getIbanLast4() + ".\n\n" + breakdown(payout) + "\nReference: " + payout.getReference()
-                        + "\n\n" + SIMULATION_NOTE);
+        notifyOrganizer(payout, Text.of("payout.paid.title", title(payout)),
+                Text.of("payout.paid.body", title(payout), account.getBankName(), account.getIbanLast4())
+                        .and(breakdown(payout)).and("payout.paid.reference", payout.getReference()));
     }
 
     @Nullable
@@ -364,17 +360,19 @@ public class PayoutServiceImpl implements PayoutService {
         payout.setHoldType(type);
         payout.setStatusReason(reason);
         audit(actorId, AuditAction.PAYOUT_HELD, payout, "Payout on hold: " + reason);
-        notifyOrganizer(payout, "Payout for " + title(payout) + " is on hold",
-                "Your payout for \"" + title(payout) + "\" (about " + kzt(payout.getAmount()) + ") is on hold.\n\n"
-                        + "Reason: " + reason + "\n\nIf you have questions, open a support case. " + SIMULATION_NOTE);
+        // An admin's hold carries the admin's own words; automatic ones are worded in the organizer's language.
+        Text reasonText = type == Payout.HoldType.ADMIN ? Text.raw(reason) : Text.of("payout.hold." + type);
+        notifyOrganizer(payout, Text.of("payout.held.title", title(payout)),
+                Text.of("payout.held.body", title(payout), amount(payout.getAmount()), reasonText));
     }
 
-    private void cancel(Payout payout, @Nullable Long actorId, String reason) {
+    // reason (English) is stored and audited; reasonKey words the organizer's notification.
+    private void cancel(Payout payout, @Nullable Long actorId, String reason, String reasonKey) {
         payout.setStatus(Payout.Status.CANCELLED);
         payout.setHoldType(null);
         payout.setStatusReason(reason);
         audit(actorId, AuditAction.PAYOUT_CANCELLED, payout, "Payout cancelled: " + reason);
-        notifyOrganizer(payout, "No payout for " + title(payout), reason + " " + SIMULATION_NOTE);
+        notifyOrganizer(payout, Text.of("payout.cancelled.title", title(payout)), Text.of(reasonKey));
     }
 
     private EventSalesResponse sales(Event event) {
@@ -389,20 +387,19 @@ public class PayoutServiceImpl implements PayoutService {
         payout.setAmount(sales.getEstimatedPayout());
     }
 
-    private static String breakdown(Payout payout) {
-        return "Ticket sales: " + kzt(payout.getGrossRevenue())
-                + "\nPromo discounts: -" + kzt(payout.getDiscounts())
-                + "\nRefunds: -" + kzt(payout.getRefunds())
-                + "\nProcessing fees: -" + kzt(payout.getProcessingFees())
-                + "\nPayout: " + kzt(payout.getAmount());
+    private static Text breakdown(Payout payout) {
+        return Text.of("payout.breakdown", amount(payout.getGrossRevenue()), amount(payout.getDiscounts()),
+                amount(payout.getRefunds()), amount(payout.getProcessingFees()), amount(payout.getAmount()));
     }
 
     private void audit(@Nullable Long actorId, AuditAction action, Payout payout, String description) {
         auditService.record(actorId, action, payout.getId(), payout.getEvent().getId(), description);
     }
 
-    private void notifyOrganizer(Payout payout, String title, String body) {
-        notificationService.notifyUser(payout.getOrganizer().getId(), NotificationType.PAYOUT_STATUS, title, body, null);
+    // Every payout message ends by saying that no real money moves.
+    private void notifyOrganizer(Payout payout, Text title, Text body) {
+        notificationService.notifyUser(payout.getOrganizer().getId(), NotificationType.PAYOUT_STATUS, title,
+                body.and("payout.simulationNote"), null);
     }
 
     private Payout lock(Long payoutId) {
@@ -414,7 +411,11 @@ public class PayoutServiceImpl implements PayoutService {
     }
 
     private static String kzt(BigDecimal amount) {
-        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString() + " KZT";
+        return amount(amount) + " KZT";
+    }
+
+    private static String amount(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     // Latest scheduled first unless the client asks for another order.

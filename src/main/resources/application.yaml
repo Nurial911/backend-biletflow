@@ -1,6 +1,13 @@
 spring:
   application:
     name: backend-biletflow
+  # Texts the backend delivers itself (emails, notifications, PDF tickets, .ics files, scan results) in
+  # Russian, Kazakh and English: i18n/messages*.properties. The base file is English; there is no fallback
+  # to the JVM locale, so an unsupported language gets English rather than whatever the server runs in.
+  messages:
+    basename: i18n/messages
+    fallback-to-system-locale: false
+    encoding: UTF-8
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

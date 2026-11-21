@@ -11,6 +11,7 @@ import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.mappers.UserMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrderRepository;
@@ -189,11 +190,10 @@ public class UserServiceImpl implements UserService {
         auditService.record(adminId, AuditAction.USER_SUSPENDED, userId, null,
                 saved.getEmail() + " suspended" + (trimmedReason != null ? ": " + trimmedReason : ""));
         notificationService.notifyUser(userId, NotificationType.ACCOUNT_SUSPENDED,
-                "Your BiletFlow account has been suspended",
-                "You can no longer sign in to BiletFlow."
-                        + (trimmedReason != null ? " Reason: " + trimmedReason + "." : "")
-                        + " Tickets you have already bought remain valid."
-                        + " If you think this is a mistake, contact BiletFlow support.",
+                Text.of("account.suspended.title"),
+                Text.of("account.suspended.body")
+                        .andIf(trimmedReason != null, "common.reason", trimmedReason)
+                        .and("account.suspended.footer"),
                 null);
         return userMapper.toDto(saved);
     }
@@ -213,7 +213,7 @@ public class UserServiceImpl implements UserService {
 
         auditService.record(adminId, AuditAction.USER_UNSUSPENDED, userId, null, saved.getEmail() + " unsuspended");
         notificationService.notifyUser(userId, NotificationType.ACCOUNT_REINSTATED,
-                "Your BiletFlow account has been restored",
-                "Your account is active again and you can sign in to BiletFlow.", null);
+                Text.of("account.reinstated.title"),
+                Text.of("account.reinstated.body"), null);
         return userMapper.toDto(saved);
     }}

@@ -4,6 +4,7 @@ import kz.edu.biletflow.backend.entities.AccountToken;
 import kz.edu.biletflow.backend.entities.AccountTokenPurpose;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
+import kz.edu.biletflow.backend.i18n.Translator;
 import kz.edu.biletflow.backend.repositories.AccountTokenRepository;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import kz.edu.biletflow.backend.services.AccountEmailService;
@@ -24,6 +25,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,7 @@ public class AccountEmailServiceImpl implements AccountEmailService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccountMailSender accountMailSender;
+    private final Translator translator;
 
     @Value("${app.frontend-url}")
     private String frontendUrl;
@@ -46,9 +49,9 @@ public class AccountEmailServiceImpl implements AccountEmailService {
     @Transactional
     public void sendVerification(User user) {
         String link = issueLink(user, AccountTokenPurpose.EMAIL_VERIFICATION, VERIFICATION_LIFETIME, "/verify-email");
-        mailAfterCommit(new OutgoingMail(user.getEmail(), "Confirm your BiletFlow email address",
-                "Open this link to confirm your email address:\n\n" + link
-                        + "\n\nThe link works once and expires in 24 hours. If you didn't create a BiletFlow account, ignore this email."));
+        Locale locale = Translator.localeOf(user);
+        mailAfterCommit(new OutgoingMail(user.getEmail(), translator.get(locale, "account.verify.subject"),
+                translator.get(locale, "account.verify.body", link)));
     }
 
     @Override
@@ -67,9 +70,9 @@ public class AccountEmailServiceImpl implements AccountEmailService {
                 .filter(user -> !sentRecently(user, AccountTokenPurpose.PASSWORD_RESET))
                 .ifPresent(user -> {
                     String link = issueLink(user, AccountTokenPurpose.PASSWORD_RESET, RESET_LIFETIME, "/reset-password");
-                    mailAfterCommit(new OutgoingMail(user.getEmail(), "Reset your BiletFlow password",
-                            "Open this link to choose a new password:\n\n" + link
-                                    + "\n\nThe link works once and expires in 1 hour. If you didn't ask for this, ignore this email; your password stays the same."));
+                    Locale locale = Translator.localeOf(user);
+                    mailAfterCommit(new OutgoingMail(user.getEmail(), translator.get(locale, "account.reset.subject"),
+                            translator.get(locale, "account.reset.body", link)));
                 });
     }
 

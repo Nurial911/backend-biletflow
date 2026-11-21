@@ -7,6 +7,7 @@ import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.repositories.EventRepository;
 import kz.edu.biletflow.backend.repositories.OrganizerProfileRepository;
 import kz.edu.biletflow.backend.repositories.PaidSalesActivationRepository;
@@ -131,9 +132,10 @@ public class PaidSalesActivationServiceImpl implements PaidSalesActivationServic
         auditService.record(adminId, AuditAction.PAID_SALES_SUSPENDED, activation.getId(), eventId,
                 "Paid sales suspended" + detail);
         notificationService.notifyUser(event.getOrganizer().getId(), NotificationType.PAID_SALES_STATUS,
-                "Paid sales suspended for " + event.getTitle(),
-                "A platform administrator suspended paid sales for \"" + event.getTitle() + "\"" + detail
-                        + ". Free tickets and tickets already sold are not affected.", null);
+                Text.of("paidSales.suspended.title", event.getTitle()),
+                Text.of("paidSales.suspended.body", event.getTitle())
+                        .andIf(cleanReason != null, "common.reason", cleanReason)
+                        .and("paidSales.suspended.footer"), null);
         return toDto(event, activation);
     }
 
@@ -151,8 +153,8 @@ public class PaidSalesActivationServiceImpl implements PaidSalesActivationServic
         auditService.record(adminId, AuditAction.PAID_SALES_UNSUSPENDED, activation.getId(), eventId,
                 "Paid sales suspension lifted");
         notificationService.notifyUser(event.getOrganizer().getId(), NotificationType.PAID_SALES_STATUS,
-                "Paid sales restored for " + event.getTitle(),
-                "A platform administrator lifted the suspension of paid sales for \"" + event.getTitle() + "\".", null);
+                Text.of("paidSales.restored.title", event.getTitle()),
+                Text.of("paidSales.restored.body", event.getTitle()), null);
         return toDto(event, activation);
     }
 

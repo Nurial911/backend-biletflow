@@ -8,6 +8,7 @@ import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.PaymentProviderException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
+import kz.edu.biletflow.backend.i18n.Text;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.*;
 import kz.edu.biletflow.backend.services.AuditService;
@@ -220,16 +221,13 @@ public class RefundServiceImpl implements RefundService {
         auditService.record(refund.getInitiatedById(), AuditAction.ORDER_REFUNDED, order.getId(), event.getId(),
                 label + "refund of " + refund.getAmount() + " KZT for order #" + order.getId()
                         + (refund.getReason() != null ? ": " + refund.getReason() : ""));
-        String moneyNote = refund.isSimulated()
-                ? "\n\nThis is a demonstration refund: no real money is involved."
-                : "\n\nThe money goes back to the card you paid with. Banks usually take a few working days to show it.";
         // No order id: the email must not attach the (now invalid) tickets.
         notificationService.notifyUser(order.getUser().getId(), NotificationType.REFUND_COMPLETED,
-                "Refund for " + event.getTitle(),
-                "Order #" + order.getId() + " for \"" + event.getTitle() + "\" was refunded: "
-                        + refund.getAmount() + " KZT."
-                        + (refund.getReason() != null ? "\nReason: " + refund.getReason() : "")
-                        + "\n\nThe tickets of this order are no longer valid." + moneyNote, null);
+                Text.of("refund.title", event.getTitle()),
+                Text.of("refund.body", order.getId(), event.getTitle(), refund.getAmount())
+                        .andIf(refund.getReason() != null, "common.reason", refund.getReason())
+                        .and("refund.ticketsInvalid")
+                        .and(refund.isSimulated() ? "refund.demoNote" : "refund.bankNote"), null);
     }
 
     private void cancelRegistration(Order order, List<Ticket> tickets, Long actorId, @Nullable String reason) {
@@ -239,10 +237,10 @@ public class RefundServiceImpl implements RefundService {
         auditService.record(actorId, AuditAction.REGISTRATION_CANCELLED, order.getId(), event.getId(),
                 "Free registration #" + order.getId() + " cancelled" + (reason != null ? ": " + reason : ""));
         notificationService.notifyUser(order.getUser().getId(), NotificationType.REGISTRATION_CANCELLED,
-                "Registration cancelled for " + event.getTitle(),
-                "The organizer cancelled your registration #" + order.getId() + " for \"" + event.getTitle() + "\"."
-                        + (reason != null ? "\nReason: " + reason : "")
-                        + "\n\nIts tickets are no longer valid.", null);
+                Text.of("registration.cancelled.title", event.getTitle()),
+                Text.of("registration.cancelled.body", order.getId(), event.getTitle())
+                        .andIf(reason != null, "common.reason", reason)
+                        .and("registration.cancelled.footer"), null);
     }
 
     private Order lockOrderOf(Long refundId) {

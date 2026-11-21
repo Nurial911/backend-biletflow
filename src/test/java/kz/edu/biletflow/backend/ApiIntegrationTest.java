@@ -63,8 +63,10 @@ abstract class ApiIntegrationTest extends IntegrationTestBase {
         return register("user-" + UUID.randomUUID() + "@test.kz");
     }
 
+    // English, so tests can read the texts the backend writes; LocalizationIntegrationTest covers the others.
     protected String register(String email) {
-        return call(HttpMethod.POST, "/api/auth/register", null, Map.of("email", email, "password", PASSWORD))
+        return call(HttpMethod.POST, "/api/auth/register", null,
+                Map.of("email", email, "password", PASSWORD, "language", "EN"))
                 .assertStatus(201).json().get("accessToken").asString();
     }
 
@@ -185,7 +187,14 @@ abstract class ApiIntegrationTest extends IntegrationTestBase {
     }
 
     protected Response call(HttpMethod method, String path, String token, Object body) {
+        return call(method, path, token, body, null);
+    }
+
+    protected Response call(HttpMethod method, String path, String token, Object body, String acceptLanguage) {
         RestTestClient.RequestBodySpec request = client.method(method).uri(path);
+        if (acceptLanguage != null) {
+            request.header(HttpHeaders.ACCEPT_LANGUAGE, acceptLanguage);
+        }
         if (token != null) {
             request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         }
