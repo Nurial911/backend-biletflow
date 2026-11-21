@@ -32,8 +32,9 @@ public class SupportControllerImpl implements SupportController {
 
     @Override
     public ResponseEntity<Page<SupportCaseResponse>> getCases(UserPrincipal currentUser, SupportCaseStatus status,
-                                                              Boolean escalated, Pageable pageable) {
-        return ResponseEntity.ok(supportService.getCases(currentUser.getId(), isAdmin(currentUser), status, escalated, pageable));
+                                                              Boolean escalated, Long eventId, Pageable pageable) {
+        return ResponseEntity.ok(supportService.getCases(currentUser.getId(), isAdmin(currentUser), status, escalated,
+                eventId, pageable));
     }
 
     @Override

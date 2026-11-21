@@ -266,6 +266,12 @@ public class SalesServiceImpl implements SalesService {
             dto.setTicketsSold(sold);
             dto.setTicketsReserved(reserved);
             dto.setTicketsRefunded(refunded);
+            Integer capacity = event.getCapacity();
+            if (capacity != null && capacity > 0) {
+                dto.setTicketsRemaining(Math.max(capacity - sold - reserved, 0));
+                dto.setPercentSold(BigDecimal.valueOf(sold * 100)
+                        .divide(BigDecimal.valueOf(capacity), 1, RoundingMode.HALF_UP));
+            }
             dto.setRevenue(money(revenue));
             BigDecimal discounts = discountsByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
             BigDecimal refunds = refundsByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));

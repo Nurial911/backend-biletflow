@@ -34,6 +34,10 @@ public class EventSalesResponse {
     private long ticketsSold;
     private long ticketsReserved;
     private long ticketsRefunded;
+    // Against the event capacity (SRS 4.15); both null when the event has no capacity.
+    // ticketsRemaining = capacity - sold - reserved, never below 0; percentSold = sold / capacity, one decimal.
+    private Long ticketsRemaining;
+    private BigDecimal percentSold;
     // Gross: list prices of PAID and REFUNDED orders, before any promo discount. The same goes for
     // ticketTypes[].revenue and salesByDay[].revenue.
     private BigDecimal revenue;

@@ -43,7 +43,7 @@ class RefundIntegrationTest extends ApiIntegrationTest {
         assertThat(order.get("status").asString()).isEqualTo("REFUNDED");
         assertThat(tickets(buyer)).extracting(t -> t.get("status").asString()).containsOnly("REFUNDED");
         JsonNode scan = scan(organizer, event, codes.get(0));
-        assertThat(scan.get("result").asString()).isEqualTo("CANCELLED");
+        assertThat(scan.get("result").asString()).isEqualTo("REFUNDED");
         assertThat(scan.get("message").asString()).isEqualTo("This ticket was refunded");
         long ticketId = tickets(buyer).get(0).get("id").asLong();
         call(HttpMethod.GET, "/api/tickets/" + ticketId + "/pdf", buyer, null).assertStatus(400);
