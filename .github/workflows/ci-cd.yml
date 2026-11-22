@@ -140,7 +140,8 @@ jobs:
           printf '%s\n' "$VM_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      # Copies the current deploy.sh to ~/app on the VM and runs it with this commit's tag.
+      # Copies the current deploy.sh, backup.sh and restore.sh to ~/app on the VM and runs deploy.sh with
+      # this commit's tag. deploy.sh backs up first and keeps the nightly backup scheduled (deploy/BACKUPS.md).
       # deploy.sh exits with an error if the new version isn't healthy (after rolling back), which fails this job.
       - name: Deploy and health-check
         env:
@@ -148,7 +149,7 @@ jobs:
           VM_USER: ${{ secrets.VM_USER }}
         run: |
           ssh_opts=(-i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20)
-          scp "${ssh_opts[@]}" deploy/deploy.sh "$VM_USER@$VM_HOST:app/deploy.sh"
+          scp "${ssh_opts[@]}" deploy/deploy.sh deploy/backup.sh deploy/restore.sh "$VM_USER@$VM_HOST:app/"
           ssh "${ssh_opts[@]}" "$VM_USER@$VM_HOST" "bash ~/app/deploy.sh $GITHUB_SHA"
 
       - name: Remove the SSH key

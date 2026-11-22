@@ -23,8 +23,8 @@ Every SRS feature is implemented; not planned: a seat-map editor, several ticket
 `.github/workflows/ci-cd.yml`:
 - **`test`** runs on every PR and every push to `master`: `./mvnw -B verify` with `TZ=Asia/Almaty`. Testcontainers uses the runner's Docker.
 - **`image`** runs on pushes to `master` only, on an ARM runner. It copies the tested jar into `deploy/Dockerfile` (runtime only, no Maven) and pushes `ghcr.io/nurial911/backend-biletflow:<sha>` and `:latest` for `linux/arm64`. The VM is an Oracle Ampere A1 (aarch64).
-- **`deploy`** connects over SSH (secrets `VM_HOST`, `VM_USER`, `VM_SSH_KEY`, `VM_KNOWN_HOSTS`), copies `deploy/deploy.sh` to `~/app` and runs it with the SHA. The script:
-  1. runs `pg_dump` into `~/app/backups` (keeps 10);
+- **`deploy`** connects over SSH (secrets `VM_HOST`, `VM_USER`, `VM_SSH_KEY`, `VM_KNOWN_HOSTS`), copies `deploy/deploy.sh`, `backup.sh` and `restore.sh` to `~/app` and runs `deploy.sh` with the SHA. The script:
+  1. runs `backup.sh deploy before-<sha>` (database + posters into `~/app/backups/deploy/`, keeps 10; a failed backup stops the deploy) and (re)installs the nightly backup cron job;
   2. saves the old `TAG` in `~/app/.env`, writes the new one, then `docker compose pull && up -d`;
   3. polls `http://localhost:8080/actuator/health` for 90 s;
   4. if that fails, restores the old `TAG`, restarts and fails the job;
@@ -35,6 +35,7 @@ On the VM, `~/app` holds:
 - `Caddyfile`.
 - `.env` (`TAG`, `DOMAIN`; no secrets).
 - `app.env`: all app secrets, loaded with `env_file`, never in git (`deploy/app.env.example` lists the names).
+- `backup.sh`, `restore.sh`, `backups/` (SRS 7, see `deploy/BACKUPS.md`): cron runs `backup.sh nightly` at 02:30 Almaty time (keeps 14), each backup a folder with `db.sql.gz` + `uploads.tar.gz`, written as `.partial` and renamed when checked. `restore.sh <folder> --yes` saves the current state to `backups/pre-restore/` first, stops the backend, recreates the database, replaces the posters and waits for health. Backups live on the VM's own disk: copy one off now and then.
 
 The root `Dockerfile` and `docker-compose.yml` are for local development only. A rollback restores the app, not the database: keep migrations additive (old app versions ignore new columns; Flyway ignores "future" migrations).
 
