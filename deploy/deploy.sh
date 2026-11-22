@@ -2,7 +2,7 @@
 # Deploys one image tag on the VM. The pipeline copies this file to ~/app and runs:
 #   bash ~/app/deploy.sh <image tag>
 #
-# 1. Backs up the database.
+# 1. Backs up the database and posters (backup.sh) and makes sure the nightly backup is scheduled.
 # 2. Saves the current TAG, writes the new one to ~/app/.env, pulls the images and restarts.
 # 3. Waits for http://localhost:8080/actuator/health to answer UP.
 # 4. Not healthy in time: puts the previous TAG back, restarts it and exits with an error, which
@@ -16,12 +16,11 @@ APP_DIR="${APP_DIR:-$HOME/app}"
 IMAGE="${IMAGE:-ghcr.io/nurial911/backend-biletflow}"
 HEALTH_URL="${HEALTH_URL:-http://localhost:8080/actuator/health}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-90}"   # seconds; the app takes about 25 s to start on the VM
-KEEP_BACKUPS="${KEEP_BACKUPS:-10}"
 
 log() { echo "[deploy $(date +%H:%M:%S)] $*"; }
 
 cd "$APP_DIR"
-for file in docker-compose.yml app.env; do
+for file in docker-compose.yml app.env backup.sh; do
     [ -f "$file" ] || { log "Missing $APP_DIR/$file (templates are in deploy/ in the repo)"; exit 1; }
 done
 touch .env
@@ -46,22 +45,20 @@ wait_until_healthy() {
     done
 }
 
+# backup.sh keeps the last 10 of these in backups/deploy/ (see deploy/BACKUPS.md).
 backup_database() {
-    mkdir -p backups
-    if ! docker compose ps --status running --services 2>/dev/null | grep -qx db; then
-        log "Database container is not running, no backup (first deploy?)"
-        return
-    fi
-    local file="backups/db-$(date +%Y%m%d-%H%M%S)-before-${NEW_TAG:0:12}.sql.gz"
-    # Single quotes: the variables are expanded inside the container, which has them from app.env.
-    if ! docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' | gzip > "$file"; then
-        rm -f "$file"
-        log "Database backup failed, nothing was changed"
-        exit 1
-    fi
-    log "Database backed up to $APP_DIR/$file"
-    # Keep the newest ones only.
-    ls -1t backups/db-*.sql.gz | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f --
+    local status=0
+    bash "$APP_DIR/backup.sh" deploy "before-${NEW_TAG:0:12}" || status=$?
+    case "$status" in
+        0) ;;
+        2) log "Database container is not running, no backup (first deploy?)" ;;
+        *) log "Backup failed, nothing was changed"; exit 1 ;;
+    esac
+}
+
+# Every deploy (re)installs the nightly cron job, so a rebuilt server gets it back by itself.
+schedule_backups() {
+    bash "$APP_DIR/backup.sh" --install-schedule || log "WARNING: the nightly backup is not scheduled"
 }
 
 rollback() {
@@ -85,6 +82,7 @@ PREVIOUS_TAG="$(current_tag)"
 log "Deploying $NEW_TAG (previous: ${PREVIOUS_TAG:-none})"
 
 backup_database
+schedule_backups
 set_tag "$NEW_TAG"
 docker compose pull || rollback "could not pull the images"
 docker compose up -d || rollback "could not start the containers"
