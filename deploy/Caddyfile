@@ -1,6 +1,18 @@
 {$DOMAIN} {
 	encode zstd gzip
 
+	# Security headers for every response (frontend and API).
+	# A Content-Security-Policy is still to come: it must list the Halyk payment script's host,
+	# which the frontend team is agreeing on, so adding it now could break checkout.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
 	# Backend: REST API (including the Halyk callback), Swagger UI and health checks
 	@backend path /api/* /swagger-ui* /v3/api-docs* /actuator/*
 	handle @backend {
