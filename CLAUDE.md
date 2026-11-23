@@ -32,7 +32,8 @@ Every SRS feature is implemented; not planned: a seat-map editor, several ticket
 
 On the VM, `~/app` holds:
 - `docker-compose.yml` (from `deploy/`). It sets project `name: biletflow`, so it keeps the old stack's volumes. Never `down -v`.
-- `Caddyfile`.
+- `Caddyfile` (from `deploy/`): `/api/*`, `/swagger-ui*`, `/v3/api-docs*` and `/actuator/*` go to the backend; every other path is the frontend, with unknown paths answered by `index.html`.
+- `frontend/`: the built frontend (`npm run build` output of `alinaalibekova-coder/frontend-BiletFlow`), mounted read-only into Caddy. CI doesn't deploy it: copy a new build by hand, no restart needed (see `deploy/FRONTEND.md`). `APP_FRONTEND_URL` in `app.env` is `https://<DOMAIN>`.
 - `.env` (`TAG`, `DOMAIN`; no secrets).
 - `app.env`: all app secrets, loaded with `env_file`, never in git (`deploy/app.env.example` lists the names).
 - `backup.sh`, `restore.sh`, `backups/` (SRS 7, see `deploy/BACKUPS.md`): cron runs `backup.sh nightly` at 02:30 Almaty time (keeps 14), each backup a folder with `db.sql.gz` + `uploads.tar.gz`, written as `.partial` and renamed when checked. `restore.sh <folder> --yes` saves the current state to `backups/pre-restore/` first, stops the backend, recreates the database, replaces the posters and waits for health. Backups live on the VM's own disk: copy one off now and then.

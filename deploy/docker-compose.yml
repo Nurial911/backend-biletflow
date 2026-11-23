@@ -5,6 +5,7 @@
 #                   itself to fill in ${TAG} and ${DOMAIN} below. No secrets.
 #   ~/app/app.env   the app's secrets (database password, JWT secret, ...), passed into the containers
 #                   with env_file. Never in git. See app.env.example.
+#   ~/app/frontend  the built frontend (index.html + assets), served by Caddy. See FRONTEND.md.
 
 # Same project name as the old stack in ~/biletflow, so the same volumes are used: the database,
 # poster uploads and HTTPS certificates carry over. Never run "docker compose down -v": -v deletes them.
@@ -59,6 +60,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend:/srv/frontend:ro   # built frontend (index.html + assets)
       - caddy_data:/data
       - caddy_config:/config
 
