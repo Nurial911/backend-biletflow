@@ -1,3 +1,19 @@
 {$DOMAIN} {
-	reverse_proxy backend:8080
+	encode zstd gzip
+
+	# Backend: REST API (including the Halyk callback), Swagger UI and health checks
+	@backend path /api/* /swagger-ui* /v3/api-docs* /actuator/*
+	handle @backend {
+		reverse_proxy backend:8080
+	}
+
+	# Frontend: the built React app in ~/app/frontend. Unknown paths get index.html,
+	# so page routes, email links and bank-return links work when opened directly.
+	handle {
+		root * /srv/frontend
+		@notAssets not path /assets/*
+		header @notAssets Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
 }
