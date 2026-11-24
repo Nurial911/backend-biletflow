@@ -51,6 +51,14 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
         """)
     long countOnSaleByTicketType(@Param("ticketTypeId") Long ticketTypeId);
 
+    // Per event: [eventId, blocked seats]; events without blocked seats are missing.
+    @Query("""
+        SELECT s.event.id, COUNT(s) FROM EventSeat s
+        WHERE s.event.id IN :eventIds AND s.blocked = true
+        GROUP BY s.event.id
+        """)
+    List<Object[]> countBlockedByEvent(@Param("eventIds") Collection<Long> eventIds);
+
     @Query("SELECT s FROM EventSeat s JOIN FETCH s.section WHERE s.event.id = :eventId AND s.blocked = true")
     List<EventSeat> findBlockedByEvent(@Param("eventId") Long eventId);
 

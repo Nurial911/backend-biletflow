@@ -135,6 +135,13 @@ class CoreFlowIntegrationTest extends ApiIntegrationTest {
         assertThat(sales.get("capacity").asInt()).isEqualTo(500);
         assertThat(sales.get("ticketsRemaining").asLong()).isEqualTo(497);
         assertThat(sales.get("percentSold").decimalValue()).isEqualByComparingTo("0.6");
+        // Only 10 of the 500 places are in a ticket type: the other 490 aren't on sale.
+        JsonNode occupancy = sales.get("occupancy");
+        assertThat(occupancy.get("sold").asLong()).isEqualTo(3);
+        assertThat(occupancy.get("reserved").asLong()).isZero();
+        assertThat(occupancy.get("available").asLong()).isEqualTo(7);
+        assertThat(occupancy.get("blocked").asLong()).isZero();
+        assertThat(occupancy.get("notOnSale").asLong()).isEqualTo(490);
     }
 
     @Test

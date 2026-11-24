@@ -302,6 +302,45 @@ class SeatingIntegrationTest extends ApiIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM event_seats WHERE event_id = ?", Long.class, copy)).isZero();
     }
 
+    @Test
+    void occupancySplitsTheHallIntoSoldHeldAvailableBlockedAndNotOnSale() {
+        String organizer = organizer();
+        long event = seatedEvent(organizer, "concert-hall"); // 308 stalls + 180 balcony seats
+        long stalls = paidType(organizer, event, "Stalls", 10000);
+        linkSection(organizer, event, "STALLS", stalls); // the balcony stays without a ticket type
+
+        Map<String, JsonNode> seats = seats(null, event, sectionId(event, "STALLS"));
+        List<Long> blocked = List.of(seats.get("B-1").get("id").asLong(), seats.get("B-2").get("id").asLong());
+        call(HttpMethod.PUT, "/api/events/" + event + "/seating/seats", organizer, Map.of("seatIds", blocked, "blocked", true))
+                .assertStatus(200);
+        String buyer = register();
+        long paid = call(HttpMethod.POST, "/api/orders", buyer, seatOrder(event, seats, "A-1", "A-2"))
+                .assertStatus(201).json().get("id").asLong();
+        pay(buyer, paid).assertStatus(200);
+        call(HttpMethod.POST, "/api/orders", register(), seatOrder(event, seats, "A-3")).assertStatus(201);
+
+        JsonNode sales = call(HttpMethod.GET, "/api/organizer/events/" + event + "/sales", organizer, null)
+                .assertStatus(200).json();
+        JsonNode occupancy = sales.get("occupancy");
+        assertThat(occupancy.get("capacity").asInt()).isEqualTo(488);
+        assertThat(occupancy.get("sold").asLong()).isEqualTo(2);
+        assertThat(occupancy.get("reserved").asLong()).isEqualTo(1);
+        assertThat(occupancy.get("blocked").asLong()).isEqualTo(2);
+        assertThat(occupancy.get("available").asLong()).isEqualTo(303);      // 308 - 2 blocked - 2 sold - 1 held
+        assertThat(occupancy.get("availableHidden").asLong()).isZero();
+        assertThat(occupancy.get("notOnSale").asLong()).isEqualTo(180);      // the balcony
+        // The capacity-based figure still counts the balcony and the blocked seats.
+        assertThat(sales.get("ticketsRemaining").asLong()).isEqualTo(485);
+
+        // Hiding the ticket type moves its stock out of what buyers can get.
+        call(HttpMethod.POST, "/api/ticket-types/" + stalls + "/hide", organizer, null).assertStatus(200);
+        JsonNode hidden = call(HttpMethod.GET, "/api/organizer/events/" + event + "/sales", organizer, null)
+                .assertStatus(200).json().get("occupancy");
+        assertThat(hidden.get("available").asLong()).isZero();
+        assertThat(hidden.get("availableHidden").asLong()).isEqualTo(303);
+        assertThat(hidden.get("notOnSale").asLong()).isEqualTo(180);
+    }
+
     // helpers //
 
     private long seatedEvent(String organizer, String layout) {

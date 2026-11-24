@@ -6,6 +6,7 @@ import jakarta.persistence.criteria.Predicate;
 import kz.edu.biletflow.backend.dtos.DailySalesResponse;
 import kz.edu.biletflow.backend.dtos.EventOrderResponse;
 import kz.edu.biletflow.backend.dtos.EventSalesResponse;
+import kz.edu.biletflow.backend.dtos.OccupancyResponse;
 import kz.edu.biletflow.backend.dtos.SalesSummaryResponse;
 import kz.edu.biletflow.backend.dtos.TicketTypeSalesResponse;
 import kz.edu.biletflow.backend.entities.Event;
@@ -19,6 +20,7 @@ import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.OrderMapper;
 import kz.edu.biletflow.backend.repositories.EventRepository;
+import kz.edu.biletflow.backend.repositories.EventSeatRepository;
 import kz.edu.biletflow.backend.repositories.OrderItemRepository;
 import kz.edu.biletflow.backend.repositories.OrderRepository;
 import kz.edu.biletflow.backend.repositories.PaymentRepository;
@@ -54,6 +56,7 @@ public class SalesServiceImpl implements SalesService {
 
     private final RefundRepository refundRepository;
     private final EventRepository eventRepository;
+    private final EventSeatRepository eventSeatRepository;
     private final TicketTypeRepository ticketTypeRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -212,6 +215,9 @@ public class SalesServiceImpl implements SalesService {
                 .sumAmountsByEvent(eventIds, RefundStatus.SUCCEEDED).stream()
                 .collect(Collectors.toMap(row -> (Long) row[0], row -> toMoney(row[1])));
 
+        Map<Long, Long> blockedByEvent = eventSeatRepository.countBlockedByEvent(eventIds).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> toLong(row[1])));
+
         List<EventSalesResponse> result = new ArrayList<>();
         for (Event event : events) {
             EventSalesResponse dto = new EventSalesResponse();
@@ -235,6 +241,8 @@ public class SalesServiceImpl implements SalesService {
             long sold = 0;
             long reserved = 0;
             long refunded = 0;
+            long available = 0;
+            long availableHidden = 0;
             BigDecimal revenue = BigDecimal.ZERO;
             List<TicketTypeSalesResponse> types = new ArrayList<>();
             for (TicketType type : typesByEvent.getOrDefault(event.getId(), List.of())) {
@@ -253,13 +261,19 @@ public class SalesServiceImpl implements SalesService {
                 t.setSold(typeSold);
                 t.setReserved(typeReserved);
                 t.setRefunded(typeRefunded);
-                t.setAvailable(Math.max(type.getQuantity() - typeSold - typeReserved, 0));
+                long typeAvailable = Math.max(type.getQuantity() - typeSold - typeReserved, 0);
+                t.setAvailable(typeAvailable);
                 t.setRevenue(typeRevenue);
                 types.add(t);
 
                 sold += typeSold;
                 reserved += typeReserved;
                 refunded += typeRefunded;
+                if (type.isHidden()) {
+                    availableHidden += typeAvailable;
+                } else {
+                    available += typeAvailable;
+                }
                 revenue = revenue.add(typeRevenue);
             }
             dto.setTicketTypes(types);
@@ -272,6 +286,20 @@ public class SalesServiceImpl implements SalesService {
                 dto.setPercentSold(BigDecimal.valueOf(sold * 100)
                         .divide(BigDecimal.valueOf(capacity), 1, RoundingMode.HALF_UP));
             }
+            OccupancyResponse occupancy = new OccupancyResponse();
+            long blocked = blockedByEvent.getOrDefault(event.getId(), 0L);
+            occupancy.setCapacity(capacity);
+            occupancy.setSold(sold);
+            occupancy.setReserved(reserved);
+            occupancy.setAvailable(available);
+            occupancy.setAvailableHidden(availableHidden);
+            occupancy.setBlocked(blocked);
+            occupancy.setRefunded(refunded);
+            if (capacity != null) {
+                // The rest of the capacity: no ticket type covers it (see OccupancyResponse).
+                occupancy.setNotOnSale(Math.max(capacity - sold - reserved - available - availableHidden - blocked, 0));
+            }
+            dto.setOccupancy(occupancy);
             dto.setRevenue(money(revenue));
             BigDecimal discounts = discountsByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
             BigDecimal refunds = refundsByEvent.getOrDefault(event.getId(), money(BigDecimal.ZERO));
