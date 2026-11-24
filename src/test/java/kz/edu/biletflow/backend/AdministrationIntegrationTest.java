@@ -118,7 +118,8 @@ class AdministrationIntegrationTest extends ApiIntegrationTest {
         assertThat(report.get("status").asString()).isEqualTo("OPEN");
         assertThat(report.get("message").asString()).isEqualTo("Fake lineup");
 
-        call(HttpMethod.POST, "/api/events/" + event + "/reports", reporter, Map.of("reason", "SPAM")).assertStatus(409);
+        assertThat(call(HttpMethod.POST, "/api/events/" + event + "/reports", reporter, Map.of("reason", "SPAM"))
+                .assertStatus(409).code()).isEqualTo("EVENT_ALREADY_REPORTED");
         call(HttpMethod.POST, "/api/events/" + event + "/reports", organizer, Map.of("reason", "SPAM")).assertStatus(400);
         call(HttpMethod.POST, "/api/events/" + event + "/reports", reporter, Map.of("reason", "BORING")).assertStatus(400);
         call(HttpMethod.POST, "/api/events/" + event + "/reports", reporter, Map.of()).assertStatus(400);

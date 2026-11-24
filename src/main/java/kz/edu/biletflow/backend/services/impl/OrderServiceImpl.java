@@ -7,6 +7,7 @@ import kz.edu.biletflow.backend.dtos.OrderResponse;
 import kz.edu.biletflow.backend.dtos.PaymentResponse;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
+import kz.edu.biletflow.backend.exception.ErrorCode;
 import kz.edu.biletflow.backend.exception.PaymentDeclinedException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.exception.SeatUnavailableException;
@@ -147,18 +148,18 @@ public class OrderServiceImpl implements OrderService {
         LocalDateTime now = LocalDateTime.now();
 
         if (order.getStatus() != OrderStatus.PENDING) {
-            throw new BusinessRuleViolationException("Only a pending order can be paid, this order is " + order.getStatus());
+            throw new BusinessRuleViolationException(ErrorCode.ORDER_NOT_PENDING, "Only a pending order can be paid, this order is " + order.getStatus());
         }
         if (!order.getExpiresAt().isAfter(now)) {
             // The scheduler flips it to EXPIRED (a status change here would be rolled back by the exception).
-            throw new BusinessRuleViolationException("The order has expired, please create a new one");
+            throw new BusinessRuleViolationException(ErrorCode.ORDER_EXPIRED, "The order has expired, please create a new one");
         }
         // Suspend cancels PENDING orders in bulk; this also catches one created concurrently with it.
         if (order.getEvent().getStatus() != EventStatus.PUBLISHED || order.getEvent().isSuspended()) {
-            throw new BusinessRuleViolationException("The event is no longer available");
+            throw new BusinessRuleViolationException(ErrorCode.EVENT_UNAVAILABLE, "The event is no longer available");
         }
         if (!order.getEvent().isPaidSalesActive()) {
-            throw new BusinessRuleViolationException("Paid sales for this event are suspended");
+            throw new BusinessRuleViolationException(ErrorCode.PAID_SALES_SUSPENDED, "Paid sales for this event are suspended");
         }
 
         // Simulation only (SRS 3.2): no provider is called and no money moves. A real or sandbox
@@ -189,7 +190,7 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse cancelOrder(Long userId, Long orderId) {
         Order order = getOwnedOrderForUpdate(userId, orderId);
         if (order.getStatus() != OrderStatus.PENDING) {
-            throw new BusinessRuleViolationException("Only a pending order can be cancelled, this order is " + order.getStatus());
+            throw new BusinessRuleViolationException(ErrorCode.ORDER_NOT_PENDING, "Only a pending order can be cancelled, this order is " + order.getStatus());
         }
         order.setStatus(OrderStatus.CANCELLED);
         return orderMapper.toDto(orderRepository.save(order));
@@ -393,7 +394,7 @@ public class OrderServiceImpl implements OrderService {
         if (event.isSuspended()) {
             // Owner/admin already know the event exists; everyone else gets the usual 404.
             if (canSeePrivate) {
-                throw new BusinessRuleViolationException("Sales are stopped: this event is suspended");
+                throw new BusinessRuleViolationException(ErrorCode.EVENT_SUSPENDED, "Sales are stopped: this event is suspended");
             }
             throw new ResourceNotFoundException("Event not found with id: " + eventId);
         }
@@ -402,13 +403,13 @@ public class OrderServiceImpl implements OrderService {
 
     private void validateRegistrationWindow(Event event, LocalDateTime now) {
         if (event.getRegistrationOpeningTime() != null && now.isBefore(event.getRegistrationOpeningTime())) {
-            throw new BusinessRuleViolationException("Registration for this event has not opened yet");
+            throw new BusinessRuleViolationException(ErrorCode.REGISTRATION_NOT_OPEN, "Registration for this event has not opened yet");
         }
         if (event.getRegistrationClosingTime() != null && now.isAfter(event.getRegistrationClosingTime())) {
-            throw new BusinessRuleViolationException("Registration for this event is closed");
+            throw new BusinessRuleViolationException(ErrorCode.REGISTRATION_CLOSED, "Registration for this event is closed");
         }
         if (!now.isBefore(event.getStartTime())) {
-            throw new BusinessRuleViolationException("The event has already started");
+            throw new BusinessRuleViolationException(ErrorCode.EVENT_ALREADY_STARTED, "The event has already started");
         }
     }
 
@@ -421,23 +422,23 @@ public class OrderServiceImpl implements OrderService {
             throw new ResourceNotFoundException("Ticket type not found with id: " + ticketType.getId());
         }
         if (ticketType.getPrice().signum() > 0 && !event.isPaidSalesActive()) {
-            throw new BusinessRuleViolationException("Paid tickets for this event are not on sale yet");
+            throw new BusinessRuleViolationException(ErrorCode.PAID_SALES_NOT_ACTIVE, "Paid tickets for this event are not on sale yet");
         }
         if (ticketType.getSalesStart() != null && now.isBefore(ticketType.getSalesStart())) {
-            throw new BusinessRuleViolationException("Sales of '" + ticketType.getName() + "' have not started yet");
+            throw new BusinessRuleViolationException(ErrorCode.TICKET_SALES_NOT_STARTED, "Sales of '" + ticketType.getName() + "' have not started yet");
         }
         if (ticketType.getSalesEnd() != null && now.isAfter(ticketType.getSalesEnd())) {
-            throw new BusinessRuleViolationException("Sales of '" + ticketType.getName() + "' have ended");
+            throw new BusinessRuleViolationException(ErrorCode.TICKET_SALES_ENDED, "Sales of '" + ticketType.getName() + "' have ended");
         }
         if (quantity > ticketType.getMaxPerOrder()) {
-            throw new BusinessRuleViolationException(
+            throw new BusinessRuleViolationException(ErrorCode.MAX_PER_ORDER_EXCEEDED,
                     "At most " + ticketType.getMaxPerOrder() + " tickets of '" + ticketType.getName() + "' per order");
         }
         long taken = orderItemRepository.countSoldOrReserved(
                 ticketType.getId(), OrderStatus.PAID, OrderStatus.PENDING, now);
         long available = ticketType.getQuantity() - taken;
         if (quantity > available) {
-            throw new BusinessRuleViolationException(
+            throw new BusinessRuleViolationException(ErrorCode.NOT_ENOUGH_TICKETS,
                     "Not enough '" + ticketType.getName() + "' tickets left. Available: " + Math.max(available, 0));
         }
     }

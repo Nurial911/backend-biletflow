@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.NOT_FOUND.value(),
+                HttpStatus.NOT_FOUND.value(), ErrorCode.NOT_FOUND,
                 ex.getMessage(),
                 LocalDateTime.now()
         );
@@ -41,13 +41,13 @@ public class GlobalExceptionHandler {
     // handler it would reach the generic one below and answer 500.
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException ex) {
-        return new ResponseEntity<>(new ErrorResponse(HttpStatus.NOT_FOUND.value(), "Not found", LocalDateTime.now()),
+        return new ResponseEntity<>(new ErrorResponse(HttpStatus.NOT_FOUND.value(), ErrorCode.NOT_FOUND, "Not found", LocalDateTime.now()),
                 HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
-        return new ResponseEntity<>(new ErrorResponse(HttpStatus.METHOD_NOT_ALLOWED.value(),
+        return new ResponseEntity<>(new ErrorResponse(HttpStatus.METHOD_NOT_ALLOWED.value(), ErrorCode.METHOD_NOT_ALLOWED,
                 "Method " + ex.getMethod() + " is not supported here", LocalDateTime.now()),
                 HttpStatus.METHOD_NOT_ALLOWED);
     }
@@ -61,7 +61,7 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining(", "));
 
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.value(), ErrorCode.VALIDATION_FAILED,
                 errorMessage,
                 LocalDateTime.now()
         );
@@ -72,7 +72,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateResourceException(DuplicateResourceException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.value(), ex.getCode(),
                 ex.getMessage(),
                 LocalDateTime.now()
         );
@@ -84,7 +84,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.value(), ErrorCode.DATA_CONFLICT,
                 "The request conflicts with existing data (e.g. a value that must be unique is already in use)",
                 LocalDateTime.now()
         );
@@ -94,7 +94,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenOperationException.class)
     public ResponseEntity<ErrorResponse> handleForbiddenOperation(ForbiddenOperationException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.FORBIDDEN.value(),
+                HttpStatus.FORBIDDEN.value(), ex.getCode(),
                 ex.getMessage(),
                 LocalDateTime.now()
         );
@@ -105,7 +105,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRuleViolation(BusinessRuleViolationException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.value(), ex.getCode(),
                 ex.getMessage(),
                 LocalDateTime.now()
         );
@@ -116,7 +116,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PaymentDeclinedException.class)
     public ResponseEntity<ErrorResponse> handlePaymentDeclined(PaymentDeclinedException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.PAYMENT_REQUIRED.value(),
+                HttpStatus.PAYMENT_REQUIRED.value(), ErrorCode.PAYMENT_DECLINED,
                 ex.getMessage(),
                 LocalDateTime.now()
         );
@@ -128,7 +128,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handlePaymentProvider(PaymentProviderException ex) {
         log.warn("Payment provider problem: {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_GATEWAY.value(),
+                HttpStatus.BAD_GATEWAY.value(), ErrorCode.PAYMENT_PROVIDER_UNAVAILABLE,
                 "The payment service is temporarily unavailable, please try again",
                 LocalDateTime.now()
         );
@@ -139,7 +139,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.value(), ErrorCode.BAD_REQUEST,
                 "Invalid value for parameter '" + ex.getName() + "'",
                 LocalDateTime.now()
         );
@@ -152,7 +152,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableRequestBody(HttpMessageNotReadableException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.value(), ErrorCode.BAD_REQUEST,
                 "Malformed request body or invalid field value",
                 LocalDateTime.now()
         );
@@ -169,7 +169,7 @@ public class GlobalExceptionHandler {
             return handleGenericException(ex);
         }
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.value(), ErrorCode.BAD_REQUEST,
                 "Invalid sort field",
                 LocalDateTime.now()
         );
@@ -190,7 +190,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.CONTENT_TOO_LARGE.value(),
+                HttpStatus.CONTENT_TOO_LARGE.value(), ErrorCode.FILE_TOO_LARGE,
                 "File is too large: posters must be at most 5 MB",
                 LocalDateTime.now()
         );
@@ -202,7 +202,7 @@ public class GlobalExceptionHandler {
             MissingServletRequestParameterException.class})
     public ResponseEntity<ErrorResponse> handleBadMultipart(Exception ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.value(), ErrorCode.BAD_REQUEST,
                 "Expected a multipart/form-data request with a 'file' part",
                 LocalDateTime.now()
         );
@@ -212,17 +212,28 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDeniedException(AccessDeniedException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.FORBIDDEN.value(),
+                HttpStatus.FORBIDDEN.value(), ErrorCode.ACCESS_DENIED,
                 "Access Denied: you are not authorized to perform this action.",
                 LocalDateTime.now()
         );
         return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
     }
 
+    // no valid token on a protected endpoint (raised by the security entry point)
+    @ExceptionHandler(AuthenticationRequiredException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationRequired(AuthenticationRequiredException ex) {
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.UNAUTHORIZED.value(), ErrorCode.UNAUTHENTICATED,
+                ex.getMessage(),
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleAuthenticationException(BadCredentialsException ex) {
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.UNAUTHORIZED.value(),
+                HttpStatus.UNAUTHORIZED.value(), ErrorCode.BAD_CREDENTIALS,
                 "Invalid email or password",
                 LocalDateTime.now()
         );
@@ -235,7 +246,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Unhandled exception", ex);
         ErrorResponse error = new ErrorResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(), ErrorCode.INTERNAL_ERROR,
                 "Internal server error",
                 LocalDateTime.now()
         );

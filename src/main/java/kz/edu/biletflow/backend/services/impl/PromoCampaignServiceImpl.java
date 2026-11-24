@@ -6,6 +6,7 @@ import kz.edu.biletflow.backend.dtos.PromoCampaignResponse;
 import kz.edu.biletflow.backend.dtos.PromoPreviewResponse;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
+import kz.edu.biletflow.backend.exception.ErrorCode;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.repositories.*;
@@ -191,7 +192,7 @@ public class PromoCampaignServiceImpl implements PromoCampaignService {
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (base.signum() == 0) {
-            throw new BusinessRuleViolationException("This promo code does not apply to the selected tickets");
+            throw new BusinessRuleViolationException(ErrorCode.PROMO_CODE_NOT_APPLICABLE, "This promo code does not apply to the selected tickets");
         }
         return campaign.getDiscountType() == PromoDiscountType.PERCENT
                 ? base.multiply(campaign.getDiscountValue()).divide(HUNDRED, 2, RoundingMode.HALF_UP)
@@ -202,22 +203,22 @@ public class PromoCampaignServiceImpl implements PromoCampaignService {
 
     private void ensureRedeemable(PromoCampaign campaign, LocalDateTime now) {
         if (!campaign.isEnabled()) {
-            throw new BusinessRuleViolationException("This promo code has been disabled");
+            throw new BusinessRuleViolationException(ErrorCode.PROMO_CODE_DISABLED, "This promo code has been disabled");
         }
         if (campaign.getValidFrom() != null && now.isBefore(campaign.getValidFrom())) {
-            throw new BusinessRuleViolationException("This promo code is not active yet");
+            throw new BusinessRuleViolationException(ErrorCode.PROMO_CODE_NOT_STARTED, "This promo code is not active yet");
         }
         if (campaign.getValidUntil() != null && now.isAfter(campaign.getValidUntil())) {
-            throw new BusinessRuleViolationException("This promo code has expired");
+            throw new BusinessRuleViolationException(ErrorCode.PROMO_CODE_EXPIRED, "This promo code has expired");
         }
         if (campaign.getMaxRedemptions() != null && orderRepository.countActiveRedemptions(
                 campaign.getId(), OrderStatus.PAID, OrderStatus.PENDING, now) >= campaign.getMaxRedemptions()) {
-            throw new BusinessRuleViolationException("This promo code has reached its redemption limit");
+            throw new BusinessRuleViolationException(ErrorCode.PROMO_CODE_LIMIT_REACHED, "This promo code has reached its redemption limit");
         }
     }
 
     private static BusinessRuleViolationException unknownCode() {
-        return new BusinessRuleViolationException("This promo code is not valid for this event");
+        return new BusinessRuleViolationException(ErrorCode.PROMO_CODE_INVALID, "This promo code is not valid for this event");
     }
 
     private static String normalize(String code) {

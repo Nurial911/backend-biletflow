@@ -70,6 +70,7 @@ class UserAdministrationIntegrationTest extends ApiIntegrationTest {
         // The old token is refused everywhere, public routes included.
         Response me = call(HttpMethod.GET, "/api/users/me", user, null).assertStatus(403);
         assertThat(me.json().get("message").asString()).isEqualTo("This account has been suspended");
+        assertThat(me.code()).isEqualTo("ACCOUNT_SUSPENDED");
         call(HttpMethod.GET, "/api/events", user, null).assertStatus(403);
         call(HttpMethod.GET, "/api/events", null, null).assertStatus(200);
 
@@ -77,6 +78,7 @@ class UserAdministrationIntegrationTest extends ApiIntegrationTest {
                 .assertStatus(403);
         assertThat(login.json().get("message").asString())
                 .isEqualTo("This account has been suspended: Reselling tickets");
+        assertThat(login.code()).isEqualTo("ACCOUNT_SUSPENDED");
         // A wrong password doesn't reveal that the account is suspended.
         call(HttpMethod.POST, "/api/auth/login", null, Map.of("email", email, "password", "Wrong123!"))
                 .assertStatus(401);

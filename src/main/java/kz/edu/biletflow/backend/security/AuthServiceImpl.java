@@ -5,6 +5,7 @@ import kz.edu.biletflow.backend.dtos.UserResponse;
 import kz.edu.biletflow.backend.entities.Language;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BadCredentialsException;
+import kz.edu.biletflow.backend.exception.ErrorCode;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.mappers.UserMapper;
@@ -35,7 +36,7 @@ public class AuthServiceImpl {
         }
         // Checked after the password, so the state of an account isn't revealed to someone who doesn't own it.
         if (user.isSuspended()) {
-            throw new ForbiddenOperationException("This account has been suspended"
+            throw new ForbiddenOperationException(ErrorCode.ACCOUNT_SUSPENDED, "This account has been suspended"
                     + (user.getSuspensionReason() != null ? ": " + user.getSuspensionReason() : ""));
         }
 
@@ -49,7 +50,7 @@ public class AuthServiceImpl {
         // store lowercase so case-insensitive login can never match two accounts
         request.setEmail(request.getEmail().trim().toLowerCase());
         if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
-            throw new DuplicateResourceException("Email is already registered");
+            throw new DuplicateResourceException(ErrorCode.EMAIL_ALREADY_REGISTERED, "Email is already registered");
         }
 
         User newUser = userMapper.toEntity(request);

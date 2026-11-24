@@ -8,6 +8,7 @@ import kz.edu.biletflow.backend.entities.EventStatus;
 import kz.edu.biletflow.backend.entities.StaffAssignment;
 import kz.edu.biletflow.backend.entities.User;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
+import kz.edu.biletflow.backend.exception.ErrorCode;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.mappers.StaffAssignmentMapper;
@@ -45,7 +46,7 @@ public class StaffServiceImpl implements StaffService {
             throw new BusinessRuleViolationException("Only users with the EVENT_ADMIN role can be assigned as check-in staff");
         }
         if (staffAssignmentRepository.existsByEventIdAndUserId(eventId, user.getId())) {
-            throw new DuplicateResourceException("This user is already assigned to the event");
+            throw new DuplicateResourceException(ErrorCode.STAFF_ALREADY_ASSIGNED, "This user is already assigned to the event");
         }
 
         StaffAssignment assignment = new StaffAssignment();
