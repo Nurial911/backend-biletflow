@@ -1,11 +1,14 @@
 package kz.edu.biletflow.backend.entities;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Formula;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Table(name = "events")
@@ -84,6 +87,13 @@ public class Event {
     @Enumerated(EnumType.STRING)
     @Column(name = "seating_mode", nullable = false, length = 20)
     private SeatingMode seatingMode = SeatingMode.GENERAL_ADMISSION;
+
+    // Lowest price among the event's visible (not hidden) ticket types, null when it has none. No column:
+    // the database computes it on every load, so every EventResponse has it and the catalog can sort by it.
+    // Read-only, and not refreshed within a transaction that changes the ticket types.
+    @Formula("(select min(tt.price) from ticket_types tt where tt.event_id = id and tt.is_hidden = false)")
+    @Setter(AccessLevel.NONE)
+    private BigDecimal minPrice;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organizer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_events_organizer"))

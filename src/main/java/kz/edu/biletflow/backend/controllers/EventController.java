@@ -8,12 +8,16 @@ import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
 import kz.edu.biletflow.backend.security.UserPrincipal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @RequestMapping("/api/events")
 public interface EventController {
@@ -27,9 +31,20 @@ public interface EventController {
     ResponseEntity<EventResponse> getEventById(@PathVariable Long id,
                                                @AuthenticationPrincipal UserPrincipal currentUser);
 
+    // The catalog. Filters are optional and combine with AND (see EventCatalogFilter); sort with
+    // e.g. sort=startTime,asc or sort=minPrice,asc. Anonymous and attendees see PUBLISHED + PUBLIC events,
+    // an organizer also their own, a PLATFORM_ADMIN everything.
     @GetMapping
-    ResponseEntity<Page<EventResponse>> getAllEvents(Pageable pageable,
-                                                     @AuthenticationPrincipal UserPrincipal currentUser);
+    ResponseEntity<Page<EventResponse>> getAllEvents(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long venueId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) BigDecimal priceMin,
+            @RequestParam(required = false) BigDecimal priceMax,
+            Pageable pageable,
+            @AuthenticationPrincipal UserPrincipal currentUser);
 
     @GetMapping("/organizer/{organizerId}")
     ResponseEntity<Page<EventResponse>> getEventsByOrganizer(

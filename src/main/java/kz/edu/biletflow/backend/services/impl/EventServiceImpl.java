@@ -1,7 +1,11 @@
 package kz.edu.biletflow.backend.services.impl;
 
 import jakarta.annotation.Nullable;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
+import kz.edu.biletflow.backend.dtos.EventCatalogFilter;
 import kz.edu.biletflow.backend.dtos.EventResponse;
 import kz.edu.biletflow.backend.dtos.PosterImage;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
@@ -23,6 +27,7 @@ import kz.edu.biletflow.backend.services.SeatingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -32,6 +37,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Service
@@ -83,13 +91,71 @@ public class EventServiceImpl implements EventService {
 
     @Transactional(readOnly = true)
     @Override
-    public Page<EventResponse> getAllEvents(Pageable pageable, Long requesterId, boolean isPlatformAdmin) {
-        if (isPlatformAdmin) {
-            return eventRepository.findAll(pageable).map(eventMapper::toDto);
-        } else {
-            return eventRepository.findVisibleEvents(requesterId != null ? requesterId : ANONYMOUS_ID, pageable)
-                    .map(eventMapper::toDto);
+    public Page<EventResponse> getAllEvents(EventCatalogFilter filter, Pageable pageable,
+                                            @Nullable Long requesterId, boolean isPlatformAdmin) {
+        if (filter.from() != null && filter.to() != null && filter.from().isAfter(filter.to())) {
+            throw new BusinessRuleViolationException("'from' must not be after 'to'");
         }
+        if ((filter.priceMin() != null && filter.priceMin().signum() < 0)
+                || (filter.priceMax() != null && filter.priceMax().signum() < 0)) {
+            throw new BusinessRuleViolationException("Prices can't be negative");
+        }
+        if (filter.priceMin() != null && filter.priceMax() != null && filter.priceMin().compareTo(filter.priceMax()) > 0) {
+            throw new BusinessRuleViolationException("'priceMin' must not be more than 'priceMax'");
+        }
+        String text = SearchText.normalize(filter.q());
+        String category = SearchText.normalize(filter.category());
+
+        Specification<Event> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (!isPlatformAdmin) {
+                // Same rule as getEventById: published, public and not suspended, or the requester's own.
+                Predicate listed = cb.and(
+                        cb.equal(root.get("status"), EventStatus.PUBLISHED),
+                        cb.equal(root.get("visibilityStatus"), VisibilityStatus.PUBLIC),
+                        cb.isFalse(root.get("suspended")));
+                predicates.add(requesterId == null ? listed
+                        : cb.or(listed, cb.equal(root.get("organizer").get("id"), requesterId)));
+            }
+            if (text != null) {
+                String pattern = SearchText.containsPattern(text);
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("title")), pattern, SearchText.ESCAPE),
+                        cb.like(cb.lower(root.get("category")), pattern, SearchText.ESCAPE),
+                        cb.like(cb.lower(root.get("venue").get("name")), pattern, SearchText.ESCAPE),
+                        cb.like(cb.lower(root.get("venue").get("address")), pattern, SearchText.ESCAPE)));
+            }
+            if (category != null) {
+                predicates.add(cb.equal(cb.lower(root.get("category")), category.toLowerCase(Locale.ROOT)));
+            }
+            if (filter.venueId() != null) {
+                predicates.add(cb.equal(root.get("venue").get("id"), filter.venueId()));
+            }
+            if (filter.from() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("startTime"), filter.from().atStartOfDay()));
+            }
+            if (filter.to() != null) {
+                predicates.add(cb.lessThan(root.get("startTime"), filter.to().plusDays(1).atStartOfDay()));
+            }
+            if (filter.priceMin() != null || filter.priceMax() != null) {
+                // At least one visible ticket type in the range (hidden ones are never shown, so never matched).
+                Subquery<Long> priced = query.subquery(Long.class);
+                Root<TicketType> type = priced.from(TicketType.class);
+                List<Predicate> typePredicates = new ArrayList<>();
+                typePredicates.add(cb.equal(type.get("event"), root));
+                typePredicates.add(cb.isFalse(type.get("hidden")));
+                if (filter.priceMin() != null) {
+                    typePredicates.add(cb.greaterThanOrEqualTo(type.get("price"), filter.priceMin()));
+                }
+                if (filter.priceMax() != null) {
+                    typePredicates.add(cb.lessThanOrEqualTo(type.get("price"), filter.priceMax()));
+                }
+                priced.select(type.get("id")).where(typePredicates.toArray(Predicate[]::new));
+                predicates.add(cb.exists(priced));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return eventRepository.findAll(spec, pageable).map(eventMapper::toDto);
     }
 
     @Transactional(readOnly = true)
