@@ -4,6 +4,7 @@ import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.*;
 import kz.edu.biletflow.backend.entities.*;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
+import kz.edu.biletflow.backend.exception.ErrorCode;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
@@ -40,7 +41,7 @@ public class OrganizerProfileServiceImpl implements OrganizerProfileService {
                 .orElseThrow(() -> new ResourceNotFoundException("User with id " + userId + " not found"));
 
         if (organizerProfileRepository.existsByUserId(userId)) {
-            throw new DuplicateResourceException("Profile already exists for this user");
+            throw new DuplicateResourceException(ErrorCode.ORGANIZER_PROFILE_EXISTS, "Profile already exists for this user");
         }
 
         if (user.getRole() != User.Role.ATTENDEE) {

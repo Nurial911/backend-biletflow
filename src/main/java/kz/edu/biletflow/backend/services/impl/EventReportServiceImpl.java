@@ -10,6 +10,7 @@ import kz.edu.biletflow.backend.entities.Event;
 import kz.edu.biletflow.backend.entities.EventReport;
 import kz.edu.biletflow.backend.entities.NotificationType;
 import kz.edu.biletflow.backend.exception.BusinessRuleViolationException;
+import kz.edu.biletflow.backend.exception.ErrorCode;
 import kz.edu.biletflow.backend.exception.DuplicateResourceException;
 import kz.edu.biletflow.backend.exception.ResourceNotFoundException;
 import kz.edu.biletflow.backend.i18n.Text;
@@ -53,7 +54,7 @@ public class EventReportServiceImpl implements EventReportService {
             throw new BusinessRuleViolationException("You cannot report your own event");
         }
         if (reportRepository.existsByEventIdAndReporterIdAndStatus(eventId, reporterId, EventReport.Status.OPEN)) {
-            throw new DuplicateResourceException("You have already reported this event; the report is waiting for review");
+            throw new DuplicateResourceException(ErrorCode.EVENT_ALREADY_REPORTED, "You have already reported this event; the report is waiting for review");
         }
 
         EventReport report = new EventReport();

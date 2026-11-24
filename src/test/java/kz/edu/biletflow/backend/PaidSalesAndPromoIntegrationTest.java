@@ -303,6 +303,8 @@ class PaidSalesAndPromoIntegrationTest extends ApiIntegrationTest {
                 .assertStatus(201).json().get("id").asLong();
         assertThat(campaignNow(organizer, event, campaign).get("remainingRedemptions").asLong()).isZero();
         assertThat(promoError(register(), event, type, code(campaign))).contains("redemption limit");
+        assertThat(call(HttpMethod.POST, "/api/orders", register(), orderWithPromo(event, type, 1, code(campaign)))
+                .assertStatus(400).code()).isEqualTo("PROMO_CODE_LIMIT_REACHED");
 
         call(HttpMethod.POST, "/api/orders/" + orderId + "/cancel", attendee, null).assertStatus(200);
 

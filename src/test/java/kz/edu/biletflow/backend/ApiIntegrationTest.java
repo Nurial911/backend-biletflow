@@ -250,6 +250,11 @@ abstract class ApiIntegrationTest extends IntegrationTestBase {
             return JSON.readTree(body);
         }
 
+        // ErrorResponse.code of an error answer
+        String code() {
+            return json().get("code").asString();
+        }
+
         String text() {
             return body == null ? "" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
         }

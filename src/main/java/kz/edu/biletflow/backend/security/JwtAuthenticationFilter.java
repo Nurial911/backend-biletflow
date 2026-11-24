@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kz.edu.biletflow.backend.exception.ForbiddenOperationException;
+import kz.edu.biletflow.backend.exception.ErrorCode;
 import kz.edu.biletflow.backend.repositories.UserRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -74,7 +75,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             if (suspended.get()) {
                 exceptionResolver.resolveException(request, response, null,
-                        new ForbiddenOperationException("This account has been suspended"));
+                        new ForbiddenOperationException(ErrorCode.ACCOUNT_SUSPENDED, "This account has been suspended"));
                 return;
             }
 

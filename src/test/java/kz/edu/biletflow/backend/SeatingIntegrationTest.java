@@ -98,8 +98,9 @@ class SeatingIntegrationTest extends ApiIntegrationTest {
 
         // Someone else trying the same seat gets 409 naming it.
         String other = register();
-        assertThat(call(HttpMethod.POST, "/api/orders", other, seatOrder(event, seats, "A-2", "A-3"))
-                .assertStatus(409).text()).contains("Stalls, row A, seat 2").doesNotContain("seat 3");
+        Response taken = call(HttpMethod.POST, "/api/orders", other, seatOrder(event, seats, "A-2", "A-3")).assertStatus(409);
+        assertThat(taken.text()).contains("Stalls, row A, seat 2").doesNotContain("seat 3");
+        assertThat(taken.code()).isEqualTo("SEAT_UNAVAILABLE");
         // A seat of a section that isn't on sale, a seated ticket type ordered by count, and one not on the map.
         long balconySeat = seats(null, event, section(map, "BALCONY").get("id").asLong()).get("A-1").get("id").asLong();
         call(HttpMethod.POST, "/api/orders", other, Map.of("eventId", event, "seatIds", List.of(balconySeat))).assertStatus(409);
