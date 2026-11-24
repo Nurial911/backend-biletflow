@@ -6,6 +6,8 @@ import kz.edu.biletflow.backend.entities.EventStatus;
 import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -52,14 +54,10 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
     @Query("SELECT e FROM Event e WHERE e.id = :id")
     Optional<Event> findByIdForUpdate(@Param("id") Long id);
 
-    @Query("""
-    SELECT e FROM Event e
-    WHERE (e.status = kz.edu.biletflow.backend.entities.EventStatus.PUBLISHED
-           AND e.visibilityStatus = kz.edu.biletflow.backend.entities.VisibilityStatus.PUBLIC
-           AND e.suspended = false)
-       OR e.organizer.id = :requesterId
-    """)
-    Page<Event> findVisibleEvents(@Param("requesterId") Long requesterId, Pageable pageable);
+    // Catalog, admin search and organizer history: the venue is part of every EventResponse.
+    @Override
+    @EntityGraph(attributePaths = {"venue"})
+    Page<Event> findAll(Specification<Event> spec, Pageable pageable);
 
     @Query("""
     SELECT e FROM Event e

@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.services;
 
 import jakarta.annotation.Nullable;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
+import kz.edu.biletflow.backend.dtos.EventCatalogFilter;
 import kz.edu.biletflow.backend.dtos.EventResponse;
 import kz.edu.biletflow.backend.dtos.PosterImage;
 import kz.edu.biletflow.backend.dtos.UpdateEventRequest;
@@ -14,7 +15,7 @@ public interface EventService {
 
     EventResponse getEventById(Long id, @Nullable Long requesterId, boolean isPlatformAdmin);
 
-    Page<EventResponse> getAllEvents(Pageable pageable, Long requesterId, boolean isPlatformAdmin);
+    Page<EventResponse> getAllEvents(EventCatalogFilter filter, Pageable pageable, @Nullable Long requesterId, boolean isPlatformAdmin);
 
     Page<EventResponse> getEventsByOrganizer(Long organizerId, Pageable pageable, Long requesterId, boolean isPlatformAdmin);
 

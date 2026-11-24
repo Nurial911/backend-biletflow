@@ -2,6 +2,7 @@ package kz.edu.biletflow.backend.controllers.impl;
 
 import kz.edu.biletflow.backend.controllers.EventController;
 import kz.edu.biletflow.backend.dtos.CreateEventRequest;
+import kz.edu.biletflow.backend.dtos.EventCatalogFilter;
 import kz.edu.biletflow.backend.dtos.EventResponse;
 import kz.edu.biletflow.backend.dtos.PosterImage;
 import kz.edu.biletflow.backend.dtos.SuspendEventRequest;
@@ -18,8 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
+import java.time.LocalDate;
 
 @RestController
 @RequiredArgsConstructor
@@ -48,11 +51,15 @@ public class EventControllerImpl implements EventController {
     }
 
     @Override
-    public ResponseEntity<Page<EventResponse>> getAllEvents(Pageable pageable, UserPrincipal currentUser) {
+    public ResponseEntity<Page<EventResponse>> getAllEvents(String q, String category, Long venueId,
+                                                            LocalDate from, LocalDate to,
+                                                            BigDecimal priceMin, BigDecimal priceMax,
+                                                            Pageable pageable, UserPrincipal currentUser) {
         boolean isPlatformAdmin = currentUser != null
                 && currentUser.hasRole("PLATFORM_ADMIN");
         Long requesterId = currentUser != null ? currentUser.getId() : null;
-        return ResponseEntity.ok(eventService.getAllEvents(pageable, requesterId, isPlatformAdmin));
+        EventCatalogFilter filter = new EventCatalogFilter(q, category, venueId, from, to, priceMin, priceMax);
+        return ResponseEntity.ok(eventService.getAllEvents(filter, pageable, requesterId, isPlatformAdmin));
     }
 
     @Override
